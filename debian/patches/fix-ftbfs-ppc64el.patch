@@ -1,0 +1,13 @@
+diff --git a/hw/kdrive/src/kinput.c b/hw/kdrive/src/kinput.c
+index a9a9fa5..f88cdc0 100644
+--- a/hw/kdrive/src/kinput.c
++++ b/hw/kdrive/src/kinput.c
+@@ -221,7 +221,7 @@ KdUnregisterFd(void *closure, int fd, Bool do_close)
+             if (do_close)
+                 close(kdInputFds[i].fd);
+             kdNumInputFds--;
+-            for (j = i; j < (kdNumInputFds - 1); j++)
++            for (j = i; j < (kdNumInputFds - 1) && j < (KD_MAX_INPUT_FDS - 1); j++)
+                 kdInputFds[j] = kdInputFds[j + 1];
+             break;
+         }

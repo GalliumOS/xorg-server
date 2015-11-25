@@ -1,0 +1,62 @@
+Date: Tue, 20 May 2014 14:32:59 +1000
+From: Peter Hutterer <peter.hutterer@who-t.net>
+Subject: [PATCH] mi: don't process events from disabled devices (#77884)
+
+Once a device is disabled, it doesn't have a sprite pointer anymore. If an
+event is still in the queue and processed after DisableDevice finished, a
+dereference causes a crash. Example backtrace (crash forced by injecting an
+event at the right time):
+
+(EE) 0: /opt/xorg/bin/Xorg (OsSigHandler+0x3c) [0x48d334]
+(EE) 1: /lib64/libpthread.so.0 (__restore_rt+0x0) [0x37fcc0f74f]
+(EE) 2: /opt/xorg/bin/Xorg (mieqMoveToNewScreen+0x38) [0x609240]
+(EE) 3: /opt/xorg/bin/Xorg (mieqProcessDeviceEvent+0xd4) [0x609389]
+(EE) 4: /opt/xorg/bin/Xorg (mieqProcessInputEvents+0x206) [0x609720]
+(EE) 5: /opt/xorg/bin/Xorg (ProcessInputEvents+0xd) [0x4aeb58]
+(EE) 6: /opt/xorg/bin/Xorg (xf86VTSwitch+0x1a6) [0x4af457]
+(EE) 7: /opt/xorg/bin/Xorg (xf86Wakeup+0x2bf) [0x4af0a7]
+(EE) 8: /opt/xorg/bin/Xorg (WakeupHandler+0x83) [0x4445cb]
+(EE) 9: /opt/xorg/bin/Xorg (WaitForSomething+0x3fe) [0x491bf6]
+(EE) 10: /opt/xorg/bin/Xorg (Dispatch+0x97) [0x435748]
+(EE) 11: /opt/xorg/bin/Xorg (dix_main+0x61d) [0x4438a9]
+(EE) 12: /opt/xorg/bin/Xorg (main+0x28) [0x49ba28]
+(EE) 13: /lib64/libc.so.6 (__libc_start_main+0xf5) [0x37fc821d65]
+(EE) 14: /opt/xorg/bin/Xorg (_start+0x29) [0x425e69]
+(EE) 15: ? (?+0x29) [0x29]
+
+xf86VTSwitch() calls ProcessInputEvents() before disabling a device, and
+DisableDevice() calls mieqProcessInputEvents() again when flushing touches and
+button events. Between that and disabling the device (which causes new events
+to be refused) there is a window where events may be triggered and enqueued.
+On the next call to PIE that event is processed on a now defunct device,
+causing the crash.
+
+The simplest fix to this is to discard events from disabled devices. We flush
+the queue often enough before disabling that when we get here, we really don't
+care about the events from this device.
+
+X.Org Bug 77884 <http://bugs.freedesktop.org/show_bug.cgi?id=77884>
+---
+Modified by Maarten Lankhorst to pass tests.
+
+ mi/mieq.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/mi/mieq.c b/mi/mieq.c
+index 4c07480..188a0b0 100644
+--- a/mi/mieq.c
++++ b/mi/mieq.c
+@@ -515,6 +515,10 @@ mieqProcessDeviceEvent(DeviceIntPtr dev, InternalEvent *event, ScreenPtr screen)
+ 
+     verify_internal_event(event);
+ 
++    /* refuse events from disabled devices */
++    if (dev && !dev->enabled)
++        return 0;
++
+     /* Custom event handler */
+     handler = miEventQueue.handlers[event->any.type];
+ 
+-- 
+1.9.0
+

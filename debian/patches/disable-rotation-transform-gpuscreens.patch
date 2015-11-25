@@ -1,0 +1,28 @@
+Description: Disable support for rotations and transforms on gpu screens.
+Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
+Bug-Ubuntu: https://launchpad.net/bugs/1386620
+Bug-Ubuntu: https://launchpad.net/bugs/1308515
+Bug-Ubuntu: https://launchpad.net/bugs/1489696
+
+--- a/hw/xfree86/modes/xf86RandR12.c
++++ b/hw/xfree86/modes/xf86RandR12.c
+@@ -927,6 +927,9 @@ xf86RandR12SetRotations(ScreenPtr pScree
+     if (xf86RandR12Key == NULL)
+         return;
+ 
++    if (pScreen->isGPU)
++        rotations = RR_Rotate_0;
++
+     randrp = XF86RANDRINFO(pScreen);
+ #if RANDR_12_INTERFACE
+     for (c = 0; c < config->num_crtc; c++) {
+@@ -947,6 +950,9 @@ xf86RandR12SetTransformSupport(ScreenPtr
+     xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(pScrn);
+ #endif
+ 
++    if (pScreen->isGPU)
++        transforms = FALSE;
++
+     if (xf86RandR12Key == NULL)
+         return;
+ 

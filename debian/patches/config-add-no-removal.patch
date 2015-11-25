@@ -1,0 +1,25 @@
+--- a/config/udev.c
++++ b/config/udev.c
+@@ -338,10 +338,9 @@
+             return;
+         action = udev_device_get_action(udev_device);
+         if (action) {
+-            if (!strcmp(action, "add")) {
+-                device_removed(udev_device);
++            if (!strcmp(action, "add"))
+                 device_added(udev_device);
+-            } else if (!strcmp(action, "change")) {
++            else if (!strcmp(action, "change")) {
+                 /* ignore change for the drm devices */
+                 if (strcmp(udev_device_get_subsystem(udev_device), "drm")) {
+                     device_removed(udev_device);
+--- a/hw/xfree86/os-support/linux/lnx_platform.c
++++ b/hw/xfree86/os-support/linux/lnx_platform.c
+@@ -177,6 +177,7 @@
+     return;
+ 
+ out_free:
++    LogMessage(X_INFO, "config/udev: Ignoring already known drm device (%s)\n", path);
+     config_odev_free_attributes(attribs);
+ }
+ 

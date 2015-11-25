@@ -1,0 +1,2130 @@
+--- a/configure.ac
++++ b/configure.ac
+@@ -621,6 +621,7 @@
+ AC_ARG_ENABLE(linux_apm, AS_HELP_STRING([--disable-linux-apm], [Disable building APM support on Linux (if available).]), [enable_linux_apm=$enableval], [enable_linux_apm=yes])
+ AC_ARG_ENABLE(systemd-logind, AS_HELP_STRING([--enable-systemd-logind], [Build systemd-logind support (default: auto)]), [SYSTEMD_LOGIND=$enableval], [SYSTEMD_LOGIND=auto])
+ AC_ARG_ENABLE(suid-wrapper, AS_HELP_STRING([--enable-suid-wrapper], [Build suid-root wrapper for legacy driver support on rootless xserver systems (default: no)]), [SUID_WRAPPER=$enableval], [SUID_WRAPPER=no])
++AC_ARG_ENABLE(xmir,           AS_HELP_STRING([--enable-xmir], [Build support for nesting in Mir (default: auto)]), [XMIR=$enableval], [XMIR=auto])
+ 
+ dnl DDXes.
+ AC_ARG_ENABLE(xorg,    	      AS_HELP_STRING([--enable-xorg], [Build Xorg server (default: auto)]), [XORG=$enableval], [XORG=auto])
+@@ -1368,6 +1369,15 @@
+ 	SDK_REQUIRED_MODULES="$SDK_REQUIRED_MODULES $XINERAMAPROTO"
+ fi
+ 
++if test "x$XMIR" != xno; then
++	PKG_CHECK_MODULES([XMIR], [mirclient], [XMIR=yes], [XMIR=no])
++	AC_SUBST([XMIR_LIBS])
++        AC_SUBST([XMIR_CFLAGS])
++        AC_DEFINE(XMIR, 1, [Support wayland mode])
++	SDK_REQUIRED_MODULES="$SDK_REQUIRED_MODULES mirclient"
++fi
++AM_CONDITIONAL(XMIR, [test "x$XMIR" = xyes])
++
+ AM_CONDITIONAL(XACE, [test "x$XACE" = xyes])
+ if test "x$XACE" = xyes; then
+ 	AC_DEFINE(XACE, 1, [Build X-ACE extension])
+@@ -2608,6 +2618,7 @@
+ hw/xfree86/utils/man/Makefile
+ hw/xfree86/utils/cvt/Makefile
+ hw/xfree86/utils/gtf/Makefile
++hw/xfree86/xmir/Makefile
+ hw/dmx/config/Makefile
+ hw/dmx/config/man/Makefile
+ hw/dmx/doc/Makefile
+--- a/hw/xfree86/Makefile.am
++++ b/hw/xfree86/Makefile.am
+@@ -34,11 +34,15 @@
+ INT10_SUBDIR = int10
+ endif
+ 
++if XMIR
++XMIR_SUBDIR = xmir
++endif
++
+ SUBDIRS = common ddc x86emu $(INT10_SUBDIR) os-support parser \
+ 	  ramdac $(VGAHW_SUBDIR) loader modes $(DRI_SUBDIR) \
+ 	  $(DRI2_SUBDIR) . $(VBE_SUBDIR) i2c dixmods \
+ 	  fbdevhw shadowfb exa $(XF86UTILS_SUBDIR) doc man \
+-	  $(GLAMOR_EGL_SUBDIR) drivers
++	  $(GLAMOR_EGL_SUBDIR) $(XMIR_SUBDIR) drivers
+ 
+ DIST_SUBDIRS = common ddc i2c x86emu int10 fbdevhw os-support \
+                parser ramdac shadowfb vbe vgahw \
+--- a/hw/xfree86/common/xf86Config.c
++++ b/hw/xfree86/common/xf86Config.c
+@@ -118,6 +118,7 @@
+     {.name = "fb",.toLoad = TRUE,.load_opt = NULL},
+     {.name = "shadow",.toLoad = TRUE,.load_opt = NULL},
+ #endif
++    {.name = "xmir", .toLoad = FALSE, .load_opt = NULL},
+     {.name = NULL,.toLoad = FALSE,.load_opt = NULL}
+ };
+ 
+@@ -272,6 +273,17 @@
+         return NULL;
+     }
+ 
++    /*
++     * Set the xmir module to autoload if requested.
++     */
++    if (xorgMir) {
++        for (i=0 ; ModuleDefaults[i].name != NULL ; i++) {
++            if (strcmp(ModuleDefaults[i].name, "xmir") == 0) {
++                ModuleDefaults[i].toLoad = TRUE;
++            }
++        }
++    }
++
+     if (xf86configptr->conf_modules) {
+         /* Walk the disable list and let people know what we've parsed to
+          * not be loaded
+--- a/hw/xfree86/common/xf86Events.c
++++ b/hw/xfree86/common/xf86Events.c
+@@ -613,6 +613,10 @@
+ {
+     DebugF("xf86VTSwitch()\n");
+ 
++    /* Host Mir server handles VTs for XMir */
++    if (xorgMir)
++        return;
++
+ #ifdef XFreeXDGA
+     if (!DGAVTSwitch())
+         return;
+--- a/hw/xfree86/common/xf86Globals.c
++++ b/hw/xfree86/common/xf86Globals.c
+@@ -206,3 +206,6 @@
+ #endif
+ RootWinPropPtr *xf86RegisteredPropertiesTable = NULL;
+ Bool xorgHWAccess = FALSE;
++Bool xorgMir = FALSE;
++const char *mirID = NULL;
++const char *mirSocket = NULL;
+--- a/hw/xfree86/common/xf86Helper.c
++++ b/hw/xfree86/common/xf86Helper.c
+@@ -100,7 +100,14 @@
+         if (xf86DriverList[drvIndex]->module)
+             UnloadModule(xf86DriverList[drvIndex]->module);
+         free(xf86DriverList[drvIndex]);
+-        xf86DriverList[drvIndex] = NULL;
++
++        /* Compact xf86DriverList array, update xf86NumDrivers */
++        xf86NumDrivers--;
++        if(drvIndex != xf86NumDrivers)
++            memmove(xf86DriverList + drvIndex,
++                    xf86DriverList + drvIndex + 1,
++                    sizeof(DriverPtr) * (xf86NumDrivers - drvIndex));
++        xf86DriverList = realloc(xf86DriverList, xf86NumDrivers * sizeof(DriverPtr));
+     }
+ }
+ 
+--- a/hw/xfree86/common/xf86Init.c
++++ b/hw/xfree86/common/xf86Init.c
+@@ -541,7 +541,7 @@
+          * needed at this early stage.
+          */
+ 
+-        for (i = 0; i < xf86NumDrivers; i++) {
++        for (i = 0; i < xf86NumDrivers; ) {
+             xorgHWFlags flags = HW_IO;
+ 
+             if (xf86DriverList[i]->Identify != NULL)
+@@ -552,12 +552,22 @@
+                                               GET_REQUIRED_HW_INTERFACES,
+                                               &flags);
+ 
++            if (xorgMir &&
++                (NEED_IO_ENABLED(flags) || !(flags & HW_SKIP_CONSOLE))) {
++
++                ErrorF("Driver needs flags %lu, incompatible with nested, deleting.\n", flags);
++                xf86DeleteDriver(i);
++                continue;
++            }
++
+             if (NEED_IO_ENABLED(flags))
+                 want_hw_access = TRUE;
+ 
+             /* Non-seat0 X servers should not open console */
+             if (!(flags & HW_SKIP_CONSOLE) && !ServerIsNotSeat0())
+                 xorgHWOpenConsole = TRUE;
++
++            i++;
+         }
+ 
+         if (xorgHWOpenConsole)
+@@ -652,9 +662,13 @@
+         }
+ 
+         /* Remove (unload) drivers that are not required */
+-        for (i = 0; i < xf86NumDrivers; i++)
+-            if (xf86DriverList[i] && xf86DriverList[i]->refCount <= 0)
++        for (i = 0; i < xf86NumDrivers; )
++            if (xf86DriverList[i] &&
++		!xf86DriverHasEntities(xf86DriverList[i]) &&
++		xf86DriverList[i]->refCount <= 0)
+                 xf86DeleteDriver(i);
++            else
++                i++;
+ 
+         /*
+          * At this stage we know how many screens there are.
+@@ -1492,6 +1506,17 @@
+         xf86Info.ShareVTs = TRUE;
+         return 1;
+     }
++    if (!strcmp(argv[i], "-mir")) {
++        CHECK_FOR_REQUIRED_ARGUMENT();
++        mirID = argv[++i];
++        xorgMir = TRUE;
++        return 2;
++    }
++    if (!strcmp(argv[i], "-mirSocket")) {
++        CHECK_FOR_REQUIRED_ARGUMENT();
++        mirSocket = argv[++i];
++        return 2;
++    }
+ 
+     /* OS-specific processing */
+     return xf86ProcessArgument(argc, argv, i);
+@@ -1565,6 +1590,8 @@
+     ErrorF
+         ("-novtswitch            don't automatically switch VT at reset & exit\n");
+     ErrorF("-sharevts              share VTs with another X server\n");
++    ErrorF
++        ("-mir MirID             run nested in a Mir compositor with app id MirID\n");
+     /* OS-specific usage */
+     xf86UseMsg();
+     ErrorF("\n");
+--- a/hw/xfree86/common/xf86Priv.h
++++ b/hw/xfree86/common/xf86Priv.h
+@@ -93,6 +93,9 @@
+ extern _X_EXPORT const char *xf86VisualNames[];
+ extern _X_EXPORT int xf86Verbose;       /* verbosity level */
+ extern _X_EXPORT int xf86LogVerbose;    /* log file verbosity level */
++extern _X_EXPORT Bool xorgMir;
++extern _X_EXPORT const char *mirID;
++extern _X_EXPORT const char *mirSocket;
+ 
+ extern _X_EXPORT RootWinPropPtr *xf86RegisteredPropertiesTable;
+ 
+@@ -150,6 +153,7 @@
+                                               int num);
+ extern _X_EXPORT pmWait (*xf86PMConfirmEventToOs) (int fd, pmEvent event);
+ 
++
+ /* xf86Helper.c */
+ extern _X_EXPORT void
+ xf86LogInit(void);
+--- a/hw/xfree86/ramdac/xf86Cursor.c
++++ b/hw/xfree86/ramdac/xf86Cursor.c
+@@ -58,7 +58,12 @@
+     xf86CursorScreenPtr ScreenPriv;
+     miPointerScreenPtr PointPriv;
+ 
+-    if (!xf86InitHardwareCursor(pScreen, infoPtr))
++    infoPtr->pScrn = xf86ScreenToScrn(pScreen);
++
++    /* If we can't create a hardware cursor don't bother initialising HW cursor support */
++    if (infoPtr->MaxWidth != 0 &&
++        infoPtr->MaxHeight != 0 &&
++        !xf86InitHardwareCursor(pScreen, infoPtr))
+         return FALSE;
+ 
+     if (!dixRegisterPrivateKey(&xf86CursorScreenKeyRec, PRIVATE_SCREEN, 0))
+--- a/hw/xfree86/ramdac/xf86HWCurs.c
++++ b/hw/xfree86/ramdac/xf86HWCurs.c
+@@ -114,8 +114,6 @@
+         infoPtr->RealizeCursor = RealizeCursorInterleave0;
+     }
+ 
+-    infoPtr->pScrn = xf86ScreenToScrn(pScreen);
+-
+     return TRUE;
+ }
+ 
+--- /dev/null
++++ b/hw/xfree86/xmir/#xmir.h#
+@@ -0,0 +1,14 @@
++
++typedef struct MirBufferInfo {
++    uint32_t name;
++    uint32_t stride;
++} MirBufferInfo;
++
++typedef void (*XMirBufferReceivedProcPtr)(WindowPtr window,
++                                          MirBufferInfo *info);
++
++typedef struct xmir_screen {
++    XMirBufferReceivedProcPtr BufferNotify;
++    MirSurface *root_surf;
++    RealizeWindowProcPtr RealizeWindow;
++} xmir_screen;
+--- /dev/null
++++ b/hw/xfree86/xmir/Makefile.am
+@@ -0,0 +1,26 @@
++INCLUDES =					\
++	$(XORG_INCS)                            \
++        -I$(srcdir)/../ddc                      \
++        -I$(srcdir)/../ramdac                   \
++        -I$(srcdir)/../i2c                      \
++        -I$(srcdir)/../parser                   \
++        -I$(srcdir)/../modes
++
++libxmir_la_LTLIBRARIES = libxmir.la
++libxmir_la_CFLAGS = \
++	-DHAVE_XORG_CONFIG_H \
++	$(DRI_CFLAGS) \
++	$(DIX_CFLAGS) $(XORG_CFLAGS) $(LIBDRM_CFLAGS) \
++	$(XMIR_CFLAGS)
++
++libxmir_la_LDFLAGS = -module -avoid-version $(LIBDRM_LIBS) $(XMIR_LIBS)
++libxmir_ladir = $(moduledir)/extensions
++libxmir_la_SOURCES = \
++	xmir.c \
++	xmir-window.c \
++	xmir-output.c \
++	xmir-thread-proxy.c \
++	xmir.h \
++	xmir-private.h
++
++sdk_HEADERS = xmir.h
+--- /dev/null
++++ b/hw/xfree86/xmir/xmir-output.c
+@@ -0,0 +1,678 @@
++/*
++ * Copyright © 2012 Canonical, Inc
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Soft-
++ * ware"), to deal in the Software without restriction, including without
++ * limitation the rights to use, copy, modify, merge, publish, distribute,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, provided that the above copyright
++ * notice(s) and this permission notice appear in all copies of the Soft-
++ * ware and that both the above copyright notice(s) and this permission
++ * notice appear in supporting documentation.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
++ * ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY
++ * RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
++ * THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSE-
++ * QUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
++ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFOR-
++ * MANCE OF THIS SOFTWARE.
++ *
++ * Except as contained in this notice, the name of a copyright holder shall
++ * not be used in advertising or otherwise to promote the sale, use or
++ * other dealings in this Software without prior written authorization of
++ * the copyright holder.
++ *
++ * Authors:
++ *   Christopher James Halse Rogers (christopher.halse.rogers@canonical.com)
++ */
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <math.h>
++
++#include <xorg-config.h>
++#include "xmir.h"
++#include "xmir-private.h"
++#include "xf86Crtc.h"
++#include "xf86Priv.h"
++
++struct xmir_crtc {
++    xmir_screen             *xmir;
++    xmir_window             *root_fragment;
++    MirDisplayConfiguration *config;
++};
++
++static const char *
++xmir_mir_dpms_mode_description(MirPowerMode mode)
++{
++    switch (mode)
++    {
++    case mir_power_mode_on:
++        return "mir_power_mode_on";
++    case mir_power_mode_standby:
++        return "mir_power_mode_standby";
++    case mir_power_mode_suspend:
++        return "mir_power_mode_suspend";
++    case mir_power_mode_off:
++        return "mir_power_mode_off";
++    default:
++        return "OMGUNKNOWN!";
++    }
++}
++
++static void
++xmir_crtc_dpms(xf86CrtcPtr crtc, int mode)
++{
++    xf86CrtcConfigPtr crtc_cfg = XF86_CRTC_CONFIG_PTR(crtc->scrn);
++    struct xmir_crtc *xmir_crtc = crtc->driver_private;
++
++    for (int i = 0; i < crtc_cfg->num_output; i++) {
++        /* If this output should be driven by our "CRTC", set DPMS mode */
++        MirDisplayOutput *output = crtc_cfg->output[i]->driver_private;
++        if (crtc_cfg->output[i]->crtc == crtc) {
++            xf86Msg(X_INFO, "Setting DPMS mode for output %d to %d\n", i, mode);
++            switch (mode) {
++            case DPMSModeOn:
++                output->power_mode = mir_power_mode_on;
++                xmir_crtc->xmir->dpms_on = TRUE;
++                break;
++            case DPMSModeStandby:
++                output->power_mode = mir_power_mode_standby;
++                xmir_crtc->xmir->dpms_on = FALSE;
++                break;
++            case DPMSModeSuspend:
++                output->power_mode = mir_power_mode_suspend;
++                xmir_crtc->xmir->dpms_on = FALSE;
++                break;
++            case DPMSModeOff:
++                output->power_mode = mir_power_mode_off;
++                xmir_crtc->xmir->dpms_on = FALSE;
++                break;
++            }
++        }
++    }
++    mir_wait_for(mir_connection_apply_display_config(xmir_connection_get(),
++                                                     xmir_crtc->config));
++}
++
++static const char*
++xmir_get_output_type_str(MirDisplayOutput *mir_output)
++{
++    const char *str = "Invalid";
++
++    switch(mir_output->type)
++    {
++    case mir_display_output_type_vga: str = "VGA"; break;
++    case mir_display_output_type_dvii: str = "DVI"; break;
++    case mir_display_output_type_dvid: str = "DVI"; break;
++    case mir_display_output_type_dvia: str = "DVI"; break;
++    case mir_display_output_type_composite: str = "Composite"; break;
++    case mir_display_output_type_svideo: str = "TV"; break;
++    case mir_display_output_type_lvds: str = "LVDS"; break;
++    case mir_display_output_type_component: str = "CTV"; break;
++    case mir_display_output_type_ninepindin: str = "DIN"; break;
++    case mir_display_output_type_displayport: str = "DP"; break;
++    case mir_display_output_type_hdmia: str = "HDMI"; break;
++    case mir_display_output_type_hdmib: str = "HDMI"; break;
++    case mir_display_output_type_tv: str = "TV"; break;
++    case mir_display_output_type_edp: str = "eDP"; break;
++
++    case mir_display_output_type_unknown: str = "None"; break;
++    default: break;
++    }
++
++    return str;
++}
++
++static void
++xmir_output_populate(xf86OutputPtr xf86output, MirDisplayOutput *output)
++{
++    /* We can always arbitrarily clone and output */
++    xf86output->possible_crtcs = 0xffffffff;
++    xf86output->possible_clones = 0xffffffff;
++
++    xf86output->driver_private = output;
++
++    xf86output->interlaceAllowed = FALSE;
++    xf86output->doubleScanAllowed = FALSE;
++    xf86output->mm_width = output->physical_width_mm;
++    xf86output->mm_height = output->physical_height_mm;
++    /* TODO: Subpixel order from Mir */
++    xf86output->subpixel_order = SubPixelUnknown;
++}
++
++static DisplayModePtr
++xmir_create_xf86mode(const struct MirDisplayMode *mir_mode)
++{
++    DisplayModePtr mode;
++
++    mode = xf86CVTMode(mir_mode->horizontal_resolution,
++                       mir_mode->vertical_resolution,
++                       mir_mode->refresh_rate,
++                       FALSE, FALSE);
++
++    /*
++     * And now, because the CVT standard doesn't support such common
++     * resolutions as 1366x768...
++     */
++    mode->VDisplay = mir_mode->vertical_resolution;
++    mode->HDisplay = mir_mode->horizontal_resolution;
++
++    xf86SetModeDefaultName(mode);
++
++    return mode;
++}
++
++static void
++xmir_free_xf86mode(DisplayModePtr mode)
++{
++    free(mode->name);
++    free(mode);
++}
++
++static Bool
++xmir_set_mode_for_output(MirDisplayOutput *output,
++                         DisplayModePtr mode)
++{
++    for (int i = 0; i < output->num_modes; i++) {
++        Bool modes_equal = FALSE;
++        DisplayModePtr mir_mode = NULL;
++        xf86Msg(X_INFO, "Checking against mode (%dx%d)@%.2f\n",
++                output->modes[i].horizontal_resolution,
++                output->modes[i].vertical_resolution,
++                output->modes[i].refresh_rate);
++
++        mir_mode = xmir_create_xf86mode(&output->modes[i]);
++        modes_equal = xf86ModesEqual(mode, mir_mode);
++        xmir_free_xf86mode(mir_mode);
++
++        if (modes_equal) {
++            output->current_mode = i;
++            output->used = 1;
++            xf86Msg(X_INFO, "Matched mode %d\n", i);
++            return TRUE;
++        }
++    }
++    return FALSE;
++}
++
++static uint32_t
++xmir_update_outputs_for_crtc(xf86CrtcPtr crtc, DisplayModePtr mode, int x, int y)
++{
++    xf86CrtcConfigPtr crtc_cfg = XF86_CRTC_CONFIG_PTR(crtc->scrn);
++    uint32_t representative_output_id = mir_display_output_id_invalid;
++
++    for (int i = 0; i < crtc_cfg->num_output; i++) {
++        /* If this output should be driven by our "CRTC", set its mode */
++        if (crtc_cfg->output[i]->crtc == crtc) {
++            MirDisplayOutput *output = crtc_cfg->output[i]->driver_private;
++            xmir_set_mode_for_output(output, mode);
++            output->position_x = x;
++            output->position_y = y;
++            representative_output_id = output->output_id;
++        }
++    }
++    return representative_output_id;
++}
++
++static void
++xmir_disable_unused_outputs(xf86CrtcPtr crtc)
++{
++    xf86CrtcConfigPtr crtc_cfg = XF86_CRTC_CONFIG_PTR(crtc->scrn);
++
++    for (int i = 0; i < crtc_cfg->num_output; i++)
++        /* If any outputs are no longer associated with a CRTC, disable them */
++        if (crtc_cfg->output[i]->crtc == NULL)
++            ((MirDisplayOutput*)crtc_cfg->output[i]->driver_private)->used = 0;
++}
++
++static void
++xmir_stupid_callback(MirSurface *surf, void *ctx)
++{
++}
++
++static void
++xmir_dump_config(MirDisplayConfiguration *config)
++{
++  for (int i = 0; i < config->num_outputs; i++)
++    {
++      xf86Msg(X_INFO, "Output %d (%s, %s) has mode %d (%d x %d @ %.2f), position (%d,%d), dpms: %s\n",
++	      config->outputs[i].output_id,
++	      config->outputs[i].connected ? "connected" : "disconnected",
++	      config->outputs[i].used ? "enabled" : "disabled",
++	      config->outputs[i].current_mode,
++          config->outputs[i].used ? config->outputs[i].modes[config->outputs[i].current_mode].horizontal_resolution : 0,
++          config->outputs[i].used ? config->outputs[i].modes[config->outputs[i].current_mode].vertical_resolution : 0,
++          config->outputs[i].used ? config->outputs[i].modes[config->outputs[i].current_mode].refresh_rate : 0,
++	      config->outputs[i].position_x,
++	      config->outputs[i].position_y,
++          xmir_mir_dpms_mode_description(config->outputs[i].power_mode));
++      for (int m = 0; m < config->outputs[i].num_modes; m++)
++      {
++        xf86Msg(X_INFO, "  mode %d: (%d x %d @ %.2f)\n",
++                m,
++                config->outputs[i].modes[m].horizontal_resolution,
++
++                config->outputs[i].modes[m].vertical_resolution,
++                config->outputs[i].modes[m].refresh_rate);
++      }
++    }
++}
++
++static void
++xmir_update_config(xf86CrtcConfigPtr crtc_cfg)
++{
++    MirDisplayConfiguration *new_config;
++    struct xmir_crtc *xmir_crtc = crtc_cfg->crtc[0]->driver_private;
++
++    mir_display_config_destroy(xmir_crtc->config);
++
++    new_config = mir_connection_create_display_config(xmir_connection_get());
++    for (int i = 0; i < crtc_cfg->num_crtc; i++) {
++        xmir_crtc = crtc_cfg->crtc[i]->driver_private;
++        xmir_crtc-> config = new_config;
++    }
++
++    if (crtc_cfg->num_output != new_config->num_outputs)
++        FatalError("[xmir] New Mir config has different number of outputs?");
++
++    for (int i = 0; i < crtc_cfg->num_output ; i++) {
++        /* TODO: Ensure that the order actually matches up */
++        xmir_output_populate(crtc_cfg->output[i], new_config->outputs + i);
++    }
++    xf86Msg(X_INFO, "Recieved updated config from Mir:\n");
++    xmir_dump_config(new_config);
++}
++
++static void
++xmir_crtc_surface_created(MirSurface *surface, void *ctx)
++{
++    xf86CrtcPtr crtc = ctx;
++    struct xmir_crtc *xmir_crtc = crtc->driver_private;
++
++    if (xmir_crtc->root_fragment->surface != NULL)
++        mir_surface_release(xmir_crtc->root_fragment->surface, xmir_stupid_callback, NULL);
++
++    xmir_crtc->root_fragment->surface = surface;
++}
++
++static Bool
++xmir_crtc_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
++                         Rotation rotation, int x, int y)
++{
++    MirSurfaceParameters params = {
++        .name = "Xorg",
++        .width = mode->HDisplay,
++        .height = mode->VDisplay,
++        .pixel_format = mir_pixel_format_xrgb_8888,
++        .buffer_usage = mir_buffer_usage_hardware,
++        .output_id = mir_display_output_id_invalid
++    };
++    BoxRec output_bounds = {
++        .x1 = x,
++        .y1 = y,
++        .x2 = x + mode->HDisplay,
++        .y2 = y + mode->VDisplay
++    };
++    struct xmir_crtc *xmir_crtc = crtc->driver_private;
++    uint32_t output_id = mir_display_output_id_invalid;
++    const char *error_msg;
++
++    if (mode->HDisplay == 0 || mode->VDisplay == 0)
++        return FALSE;
++
++    xf86Msg(X_INFO, "Initial configuration for crtc %p:\n", crtc);
++    xmir_dump_config(xmir_crtc->config);
++
++    xf86Msg(X_INFO, "Setting mode to %dx%d (%.2f)\n", mode->HDisplay, mode->VDisplay, mode->VRefresh);
++    output_id = xmir_update_outputs_for_crtc(crtc, mode, x, y);
++    xmir_disable_unused_outputs(crtc);
++
++    xf86Msg(X_INFO, "Updated configuration:\n");
++
++    xmir_dump_config(xmir_crtc->config);
++    mir_wait_for(mir_connection_apply_display_config(xmir_connection_get(),
++                                                     xmir_crtc->config));
++    error_msg = mir_connection_get_error_message(xmir_connection_get());
++    if (*error_msg != '\0') {
++        xf86Msg(X_ERROR, "[xmir] Failed to set new display config: %s\n",
++                error_msg);
++        return FALSE;
++        /* TODO: Restore correct config cache */
++    }
++
++    xf86Msg(X_INFO, "Post-modeset config:\n");
++    xmir_update_config(XF86_CRTC_CONFIG_PTR(crtc->scrn));
++
++    if (output_id == mir_display_output_id_invalid) {
++      if (xmir_crtc->root_fragment->surface != NULL)
++        mir_wait_for(mir_surface_release(xmir_crtc->root_fragment->surface, xmir_stupid_callback, NULL));
++        xmir_crtc->root_fragment->surface = NULL;
++        return TRUE;
++    }
++
++    params.output_id = output_id;
++    xf86Msg(X_INFO, "Putting surface on output %d\n", output_id);
++    mir_wait_for(mir_connection_create_surface(xmir_connection_get(),
++					       &params,
++					       xmir_crtc_surface_created,
++					       crtc));
++    if (!mir_surface_is_valid(xmir_crtc->root_fragment->surface)) {
++        xf86Msg(X_ERROR,
++                "[xmir] Failed to create surface for %dx%d mode: %s\n",
++                mode->HDisplay, mode->VDisplay,
++                mir_surface_get_error_message(xmir_crtc->root_fragment->surface));
++        return FALSE;
++    }
++
++
++    /* During X server init this will be NULL.
++       This is fixed up in xmir_window_create */
++    xmir_crtc->root_fragment->win = xf86ScrnToScreen(crtc->scrn)->root;
++
++    RegionInit(&xmir_crtc->root_fragment->region, &output_bounds, 0);
++    xmir_crtc->root_fragment->has_free_buffer = TRUE;
++
++    return TRUE;
++}
++
++static void
++crtc_set_cursor_colors (xf86CrtcPtr crtc, int bg, int fg)
++{
++}
++
++static void
++crtc_set_cursor_position (xf86CrtcPtr crtc, int x, int y)
++{
++}
++
++static void
++crtc_show_cursor (xf86CrtcPtr crtc)
++{
++}
++
++static void
++crtc_hide_cursor (xf86CrtcPtr crtc)
++{
++}
++
++static void
++crtc_load_cursor_argb (xf86CrtcPtr crtc, CARD32 *image)
++{
++}
++
++static PixmapPtr
++crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
++{
++    return NULL;
++}
++
++static void *
++crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
++{
++    return NULL;
++}
++
++static void
++crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *data)
++{
++}
++
++static void
++xmir_crtc_destroy(xf86CrtcPtr crtc)
++{
++    struct xmir_crtc *xmir_crtc = crtc->driver_private;
++
++    if (xmir_crtc->root_fragment->surface != NULL)
++        mir_surface_release(xmir_crtc->root_fragment->surface, NULL, NULL);
++
++    free(xmir_crtc);
++}
++
++static const xf86CrtcFuncsRec crtc_funcs = {
++    .dpms                = xmir_crtc_dpms,
++    .set_mode_major      = xmir_crtc_set_mode_major,
++    .set_cursor_colors   = crtc_set_cursor_colors,
++    .set_cursor_position = crtc_set_cursor_position,
++    .show_cursor         = crtc_show_cursor,
++    .hide_cursor         = crtc_hide_cursor,
++    .load_cursor_argb    = crtc_load_cursor_argb,
++    .shadow_create       = crtc_shadow_create,
++    .shadow_allocate     = crtc_shadow_allocate,
++    .shadow_destroy      = crtc_shadow_destroy,
++    .destroy             = xmir_crtc_destroy,
++};
++
++static void
++xmir_output_dpms(xf86OutputPtr output, int mode)
++{
++    return;
++}
++
++static xf86OutputStatus
++xmir_output_detect(xf86OutputPtr output)
++{
++    MirDisplayOutput *mir_output = output->driver_private;
++    return mir_output->connected ? XF86OutputStatusConnected : XF86OutputStatusDisconnected;
++}
++
++static Bool
++xmir_output_mode_valid(xf86OutputPtr output, DisplayModePtr pModes)
++{
++    return MODE_OK;
++}
++
++static DisplayModePtr
++xmir_output_get_modes(xf86OutputPtr xf86output)
++{
++    MirDisplayOutput *mir_output = xf86output->driver_private;
++    DisplayModePtr modes = NULL;
++
++    for (int i = 0; i < mir_output->num_modes; i++) {
++        DisplayModePtr mode = xmir_create_xf86mode(&mir_output->modes[i]);
++
++        mode->type = M_T_DRIVER;
++        if (i == mir_output->preferred_mode)
++            mode->type |= M_T_PREFERRED;
++
++        modes = xf86ModesAdd(modes, mode);
++    }
++    /* TODO: Get Mir to send us the EDID blob and add that */
++
++    return modes;
++}
++
++static void
++xmir_output_destroy(xf86OutputPtr xf86output)
++{
++    /* The MirDisplayOutput* in driver_private gets cleaned up by
++       mir_display_config_destroy() */
++}
++
++static const xf86OutputFuncsRec xmir_output_funcs = {
++    .dpms       = xmir_output_dpms,
++    .detect     = xmir_output_detect,
++    .mode_valid = xmir_output_mode_valid,
++    .get_modes  = xmir_output_get_modes,
++    .destroy    = xmir_output_destroy
++};
++
++
++struct xmir_visit_set_pixmap_window {
++    PixmapPtr old, new;
++};
++
++static int
++xmir_visit_set_window_pixmap(WindowPtr window, void* data)
++{
++    struct xmir_visit_set_pixmap_window *visit = data;
++
++    if (window->drawable.pScreen->GetWindowPixmap(window) == visit->old) {
++        window->drawable.pScreen->SetWindowPixmap(window, visit->new);
++        return WT_WALKCHILDREN;
++    }
++
++    return WT_DONTWALKCHILDREN;
++}
++
++static void
++xmir_set_screen_pixmap(PixmapPtr old_front, PixmapPtr new_front)
++{
++    struct xmir_visit_set_pixmap_window visit = {
++        .old = old_front,
++        .new = new_front
++    };
++    (old_front->drawable.pScreen->SetScreenPixmap)(new_front);
++
++    TraverseTree(old_front->drawable.pScreen->root, &xmir_visit_set_window_pixmap, &visit);
++}
++
++static Bool
++xmir_resize(ScrnInfoPtr scrn, int width, int height)
++{
++    xf86CrtcConfigPtr crtc_cfg = XF86_CRTC_CONFIG_PTR(scrn);
++    ScreenPtr screen = xf86ScrnToScreen(scrn);
++    PixmapPtr old_screen_pixmap, new_screen_pixmap;
++
++    if (scrn->virtualX == width && scrn->virtualY == height)
++        return TRUE;
++
++    old_screen_pixmap = screen->GetScreenPixmap(screen);
++    new_screen_pixmap = screen->CreatePixmap(screen, width, height, scrn->depth,
++                                             CREATE_PIXMAP_USAGE_BACKING_PIXMAP);
++
++    if (!new_screen_pixmap)
++        return FALSE;
++
++    scrn->virtualX = width;
++    scrn->virtualY = height;
++    scrn->displayWidth = width;
++
++    for (int i = 0; i < crtc_cfg->num_crtc; i++) {
++        xf86CrtcPtr crtc = crtc_cfg->crtc[i];
++
++        if (!crtc->enabled)
++            continue;
++
++        xmir_crtc_set_mode_major(crtc, &crtc->mode,
++                                 crtc->rotation, crtc->x, crtc->y);
++    }
++
++    xmir_set_screen_pixmap(old_screen_pixmap, new_screen_pixmap);
++    screen->DestroyPixmap(old_screen_pixmap);
++
++    xf86_reload_cursors(screen);
++
++    return TRUE;
++}
++
++static const xf86CrtcConfigFuncsRec config_funcs = {
++    xmir_resize
++};
++
++static void
++xmir_handle_hotplug(void *ctx)
++{
++    ScrnInfoPtr scrn = *(ScrnInfoPtr *)ctx;
++    xf86CrtcConfigPtr crtc_config = XF86_CRTC_CONFIG_PTR(scrn);
++
++    if (crtc_config->num_crtc == 0)
++        FatalError("[xmir] Received hotplug event, but have no CRTCs?\n");
++
++    xmir_update_config(crtc_config);
++
++    /* Trigger RANDR refresh */
++    RRGetInfo(xf86ScrnToScreen(scrn), TRUE);
++}
++
++static void
++xmir_display_config_callback(MirConnection *unused, void *ctx)
++{
++    xmir_screen *xmir = ctx;
++
++    xmir_post_to_eventloop(xmir->hotplug_event_handler, &xmir->scrn);
++}
++
++Bool
++xmir_mode_pre_init(ScrnInfoPtr scrn, xmir_screen *xmir)
++{
++    int i;
++    MirDisplayConfiguration *display_config;
++    xf86CrtcPtr xf86crtc;
++    int output_type_count[mir_display_output_type_edp + 1];
++
++    memset(output_type_count, 0, sizeof output_type_count);
++
++    /* Set up CRTC config functions */
++    xf86CrtcConfigInit(scrn, &config_funcs);
++
++    /* We don't scanout of a single surface, so we don't have a scanout limit */
++    xf86CrtcSetSizeRange(scrn,
++                         320, 320,
++                         INT16_MAX, INT16_MAX);
++
++    /* Hook up hotplug notification */
++    xmir->hotplug_event_handler =
++        xmir_register_handler(&xmir_handle_hotplug,
++                              sizeof (ScreenPtr));
++
++    mir_connection_set_display_config_change_callback(
++        xmir_connection_get(),
++        &xmir_display_config_callback, xmir);
++
++    display_config =
++        mir_connection_create_display_config(xmir_connection_get());
++
++    xmir->root_window_fragments = malloc((display_config->cards[0].max_simultaneous_outputs + 1) *
++                                         sizeof(xmir_window *));
++    xmir->root_window_fragments[display_config->cards[0].max_simultaneous_outputs] = NULL;
++
++    if (xmir->root_window_fragments == NULL)
++        return FALSE;
++
++    for (i = 0; i < display_config->num_outputs; i++) {
++        xf86OutputPtr xf86output;
++        char name[32];
++        MirDisplayOutput *mir_output = &display_config->outputs[i];
++        const char* output_type_str = xmir_get_output_type_str(mir_output);
++        int type_count = i;
++
++        if (mir_output->type >= 0 && mir_output->type <= mir_display_output_type_edp)
++            type_count = output_type_count[mir_output->type]++;
++
++        snprintf(name, sizeof name, "%s-%d", output_type_str, type_count);
++        xf86output = xf86OutputCreate(scrn, &xmir_output_funcs, name);
++
++        xmir_output_populate(xf86output, mir_output);
++    }
++
++    for (i = 0; i < display_config->cards[0].max_simultaneous_outputs; i++) {
++        struct xmir_crtc *xmir_crtc = malloc(sizeof *xmir_crtc);
++        if (xmir_crtc == NULL)
++            return FALSE;
++
++        xmir_crtc->xmir = xmir;
++        xmir_crtc->root_fragment = calloc(1, sizeof *xmir_crtc->root_fragment);
++        xmir_crtc->config = display_config;
++
++        if (xmir_crtc->root_fragment == NULL)
++            return FALSE;
++
++        xmir->root_window_fragments[i] = xmir_crtc->root_fragment;
++        RegionNull(&xmir_crtc->root_fragment->region);
++
++        xf86crtc = xf86CrtcCreate(scrn, &crtc_funcs);
++        xf86crtc->driver_private = xmir_crtc;
++    }
++
++    xf86SetScrnInfoModes(scrn);
++
++    /* TODO: Use initial Mir state rather than setting up our own */
++    xf86InitialConfiguration(scrn, TRUE);
++
++    return TRUE;
++}
+--- /dev/null
++++ b/hw/xfree86/xmir/xmir-private.h
+@@ -0,0 +1,105 @@
++/*
++ * Copyright © 2012 Canonical, Inc
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Soft-
++ * ware"), to deal in the Software without restriction, including without
++ * limitation the rights to use, copy, modify, merge, publish, distribute,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, provided that the above copyright
++ * notice(s) and this permission notice appear in all copies of the Soft-
++ * ware and that both the above copyright notice(s) and this permission
++ * notice appear in supporting documentation.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
++ * ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY
++ * RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
++ * THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSE-
++ * QUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
++ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFOR-
++ * MANCE OF THIS SOFTWARE.
++ *
++ * Except as contained in this notice, the name of a copyright holder shall
++ * not be used in advertising or otherwise to promote the sale, use or
++ * other dealings in this Software without prior written authorization of
++ * the copyright holder.
++ *
++ * Authors:
++ *   Christopher James Halse Rogers (christopher.halse.rogers@canonical.com)
++ */
++
++#ifndef _XMIR_PRIVATE_H
++#define _XMIR_PRIVATE_H
++
++#include "xmir.h"
++#include "xf86str.h"
++#include "list.h"
++#include "scrnintstr.h"
++#include "regionstr.h"
++
++#define MIR_MAX_BUFFER_AGE 3
++
++typedef struct xmir_marshall_handler xmir_marshall_handler;
++
++struct xmir_screen {
++    ScrnInfoPtr            scrn;
++    CreateWindowProcPtr    CreateWindow;
++    DestroyWindowProcPtr   DestroyWindow;
++    xmir_driver *          driver;
++    xmir_marshall_handler *submit_rendering_handler;
++    xmir_marshall_handler *hotplug_event_handler;
++    xmir_marshall_handler *focus_event_handler;
++    struct xorg_list       damage_list;
++    struct xmir_window   **root_window_fragments; /* NULL terminated array of xmir_window * */
++    unsigned int           dpms_on:1;             /* Until Mir is less stupid about DPMS */
++};
++
++struct xmir_window {
++    WindowPtr           win;
++    MirSurface         *surface;
++    RegionRec           region;
++    RegionRec           past_damage[MIR_MAX_BUFFER_AGE];
++    DamagePtr           damage;
++    int                 damage_index;
++    struct xorg_list    link_damage;
++    unsigned int        has_free_buffer:1;
++    unsigned int        damaged:1;
++};
++
++MirConnection *
++xmir_connection_get(void);
++
++xmir_screen *
++xmir_screen_get(ScreenPtr screen);
++
++xmir_window *
++xmir_window_get(WindowPtr win);
++
++void
++xmir_window_enable_damage_tracking(xmir_window *xmir_win);
++
++void
++xmir_window_disable_damage_tracking(xmir_window *xmir_win);
++
++
++Bool
++xmir_screen_init_window(ScreenPtr screen, xmir_screen *xmir);
++
++Bool
++xmir_mode_pre_init(ScrnInfoPtr scrn, xmir_screen *xmir);
++
++void
++xmir_init_thread_to_eventloop(void);
++
++xmir_marshall_handler *
++xmir_register_handler(void (*msg_handler)(void *msg), size_t msg_size);
++
++void
++xmir_post_to_eventloop(xmir_marshall_handler *handler, void *msg);
++
++void
++xmir_process_from_eventloop(void);
++
++ #endif /* _MIR_PRIVATE_H */
+--- /dev/null
++++ b/hw/xfree86/xmir/xmir-thread-proxy.c
+@@ -0,0 +1,124 @@
++/*
++ * Copyright © 2012 Canonical, Inc
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Soft-
++ * ware"), to deal in the Software without restriction, including without
++ * limitation the rights to use, copy, modify, merge, publish, distribute,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, provided that the above copyright
++ * notice(s) and this permission notice appear in all copies of the Soft-
++ * ware and that both the above copyright notice(s) and this permission
++ * notice appear in supporting documentation.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
++ * ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY
++ * RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
++ * THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSE-
++ * QUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
++ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFOR-
++ * MANCE OF THIS SOFTWARE.
++ *
++ * Except as contained in this notice, the name of a copyright holder shall
++ * not be used in advertising or otherwise to promote the sale, use or
++ * other dealings in this Software without prior written authorization of
++ * the copyright holder.
++ *
++ * Authors:
++ *   Christopher James Halse Rogers (christopher.halse.rogers@canonical.com)
++ */
++
++#include <stdint.h>
++#include <string.h>
++#include <unistd.h>
++#include <fcntl.h>
++#include <errno.h>
++
++#include "xf86.h"
++#include "xmir-private.h"
++
++struct xmir_marshall_handler {
++	void (*msg_handler)(void *msg);
++	size_t msg_size;
++	char msg[];
++};
++
++static int pipefds[2];
++
++static void
++xmir_wakeup_handler(void* data, int err, void* read_mask)
++{
++    if (err >= 0 && FD_ISSET(pipefds[0], (fd_set *)read_mask))
++        xmir_process_from_eventloop();
++}
++
++void
++xmir_init_thread_to_eventloop(void)
++{
++	int err = pipe(pipefds);
++	if (err == -1)
++		FatalError("[XMIR] Failed to create thread-proxy pipes: %s\n", strerror(errno));
++
++	/* Set the read end to not block; we'll pull from this in the event loop
++	 * We don't need to care about the write end, as that'll be written to
++	 * from its own thread
++	 */
++	fcntl(pipefds[0], F_SETFL, O_NONBLOCK);
++
++	AddGeneralSocket(pipefds[0]);
++	RegisterBlockAndWakeupHandlers((BlockHandlerProcPtr)NoopDDA,
++				       xmir_wakeup_handler,
++				       NULL);
++}
++
++xmir_marshall_handler *
++xmir_register_handler(void (*msg_handler)(void *msg), size_t msg_size)
++{
++	xmir_marshall_handler *handler;
++
++	if (msg_size + sizeof *handler > PIPE_BUF)
++		return NULL;
++
++	handler = malloc(sizeof *handler + msg_size);
++	if (!handler)
++		return NULL;
++
++	handler->msg_handler = msg_handler;
++	handler->msg_size = msg_size;
++	return handler;
++}
++
++void
++xmir_post_to_eventloop(xmir_marshall_handler *handler, void *msg)
++{
++	ssize_t written;
++	const int total_size = sizeof *handler + handler->msg_size;
++	/* We require the total size to be less than PIPE_BUF to ensure an atomic write */
++	assert(total_size < PIPE_BUF);
++
++	memcpy(handler->msg, msg, handler->msg_size);
++	written = write(pipefds[1], handler, total_size);
++	if (written != total_size)
++		xf86Msg(X_ERROR, "[XMIR] Failed to proxy message to mainloop\n");
++}
++
++void
++xmir_process_from_eventloop(void)
++{
++	xmir_marshall_handler handler;
++	void *msg;
++
++	for (;;) {
++		if (read(pipefds[0], &handler, sizeof handler) < 0) {
++			return;
++		}
++
++		msg = malloc(handler.msg_size);
++		if(read(pipefds[0], msg, handler.msg_size) == handler.msg_size)
++			(*handler.msg_handler)(msg);
++		free(msg);
++	}
++}
++
+--- /dev/null
++++ b/hw/xfree86/xmir/xmir-window.c
+@@ -0,0 +1,342 @@
++/*
++ * Copyright © 2012 Canonical, Inc
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Soft-
++ * ware"), to deal in the Software without restriction, including without
++ * limitation the rights to use, copy, modify, merge, publish, distribute,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, provided that the above copyright
++ * notice(s) and this permission notice appear in all copies of the Soft-
++ * ware and that both the above copyright notice(s) and this permission
++ * notice appear in supporting documentation.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
++ * ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY
++ * RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
++ * THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSE-
++ * QUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
++ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFOR-
++ * MANCE OF THIS SOFTWARE.
++ *
++ * Except as contained in this notice, the name of a copyright holder shall
++ * not be used in advertising or otherwise to promote the sale, use or
++ * other dealings in this Software without prior written authorization of
++ * the copyright holder.
++ *
++ * Authors:
++ *   Christopher James Halse Rogers (christopher.halse.rogers@canonical.com)
++ */
++
++#ifdef HAVE_XORG_CONFIG_H
++#include "xorg-config.h"
++#endif
++#include "windowstr.h"
++#include "regionstr.h"
++#include "damagestr.h"
++
++#include "xmir.h"
++#include "xmir-private.h"
++
++#include "xf86.h"
++
++#include <stdlib.h>
++#include <unistd.h>
++
++static DevPrivateKeyRec xmir_window_private_key;
++static const RegionRec xmir_empty_region = { {0, 0, 0, 0}, &RegionBrokenData };
++
++xmir_window *
++xmir_window_get(WindowPtr win)
++{
++    /* The root window is handled specially */
++    assert(win->parent != NULL);
++
++    return dixGetPrivate(&win->devPrivates, &xmir_window_private_key);
++}
++
++_X_EXPORT int
++xmir_window_get_fd(xmir_window *xmir_win)
++{
++    MirBufferPackage *package;
++
++    if (mir_platform_type_gbm != mir_surface_get_platform_type(xmir_win->surface))
++        FatalError("[xmir] Only supported on DRM Mir platform\n");
++
++    mir_surface_get_current_buffer(xmir_win->surface, &package);
++    if (package->fd_items != 1)
++        FatalError("[xmir] Unexpected buffer contents from Mir; this is a programming error\n");
++
++    return package->fd[0];
++}
++
++static void
++xmir_handle_buffer_available(void *ctx)
++{
++    xmir_screen *xmir;
++    xmir_window *mir_win = *(xmir_window **)ctx;
++
++    if (mir_win->surface == NULL)
++        return;
++
++    xmir = xmir_screen_get(xmir_window_to_windowptr(mir_win)->drawable.pScreen);
++
++    mir_win->has_free_buffer = TRUE;
++    mir_win->damage_index = (mir_win->damage_index + 1) % MIR_MAX_BUFFER_AGE;
++
++    if (xmir_window_is_dirty(mir_win))
++        (*xmir->driver->BufferAvailableForWindow)(mir_win,
++                                                  xmir_window_get_dirty(mir_win));
++}
++
++static inline int
++index_in_damage_buffer(int current_index, int age)
++{
++    int index = (current_index - age) % MIR_MAX_BUFFER_AGE;
++
++    return index < 0 ? MIR_MAX_BUFFER_AGE + index : index;
++}
++
++static void
++handle_buffer_received(MirSurface *surf, void *ctx)
++{
++    xmir_window *xmir_win = ctx;
++
++    xmir_screen *xmir =
++        xmir_screen_get(xmir_window_to_windowptr(xmir_win)->drawable.pScreen);
++
++    xmir_post_to_eventloop(xmir->submit_rendering_handler, &xmir_win);
++}
++
++static RegionPtr
++damage_region_for_current_buffer(xmir_window *xmir_win)
++{
++    MirBufferPackage *package;
++    RegionPtr region;
++    int age;
++
++    mir_surface_get_current_buffer(xmir_win->surface, &package);
++    age = package->age;
++
++    region = &xmir_win->past_damage[index_in_damage_buffer(xmir_win->damage_index, age)];
++
++    /* As per EGL_EXT_buffer_age, contents are undefined for age == 0 */
++    if (age == 0)
++        RegionCopy(region, &xmir_win->region);
++
++    return region;
++}
++
++/* Submit rendering for @window to Mir
++ * @region is an (optional) damage region, to hint the compositor as to what
++ * region has changed. It can be NULL to indicate the whole window should be
++ * considered dirty.
++ */
++_X_EXPORT int
++xmir_submit_rendering_for_window(xmir_window *xmir_win,
++                                 RegionPtr region)
++{
++    RegionPtr tracking;
++
++    if (!xmir_screen_get(xmir_win->win->drawable.pScreen)->dpms_on)
++        return Success;
++
++    xmir_win->has_free_buffer = FALSE;
++    tracking = damage_region_for_current_buffer(xmir_win);
++    mir_surface_swap_buffers(xmir_win->surface, &handle_buffer_received, xmir_win);
++
++    if (region == NULL)
++        RegionEmpty(tracking);
++    else
++        RegionSubtract(tracking, tracking, region);
++
++    if (RegionNil(tracking))
++        xorg_list_del(&xmir_win->link_damage);
++
++    return Success;
++}
++
++_X_EXPORT Bool
++xmir_window_has_free_buffer(xmir_window *xmir_win)
++{
++    return xmir_win->has_free_buffer;
++}
++
++_X_EXPORT RegionPtr
++xmir_window_get_dirty(xmir_window *xmir_win)
++{
++    if (xorg_list_is_empty(&xmir_win->link_damage))
++        return (RegionPtr)&xmir_empty_region;
++
++    if (xmir_win->damaged) {
++        int i;
++        RegionPtr damage = DamageRegion(xmir_win->damage);
++        RegionIntersect(damage, damage, &xmir_win->region);
++
++        for (i = 0; i < MIR_MAX_BUFFER_AGE; i++) {
++            RegionUnion(&xmir_win->past_damage[i],
++                        &xmir_win->past_damage[i],
++                        damage);
++        }
++
++        DamageEmpty(xmir_win->damage);
++        xmir_win->damaged = 0;
++    }
++
++    return damage_region_for_current_buffer(xmir_win);
++}
++
++_X_EXPORT Bool
++xmir_window_is_dirty(xmir_window *xmir_win)
++{
++    return RegionNotEmpty(xmir_window_get_dirty(xmir_win));
++}
++
++_X_EXPORT WindowPtr
++xmir_window_to_windowptr(xmir_window *xmir_win)
++{
++    return xmir_win->win;
++}
++
++_X_EXPORT BoxPtr
++xmir_window_get_drawable_region(xmir_window *xmir_win)
++{
++    return RegionExtents(&xmir_win->region);
++}
++
++_X_EXPORT int32_t
++xmir_window_get_stride(xmir_window *xmir_win)
++{
++    MirBufferPackage *package;
++
++    mir_surface_get_current_buffer(xmir_win->surface, &package);
++
++    return package->stride;
++}
++
++static void
++damage_report(DamagePtr damage, RegionPtr region, void *ctx)
++{
++    xmir_window *xmir_win = ctx;
++
++    xmir_win->damaged = 1;
++    xorg_list_move(&xmir_win->link_damage,
++                   &xmir_screen_get(damage->pScreen)->damage_list);
++}
++
++static void
++damage_destroy(DamagePtr damage, void *ctx)
++{
++    xmir_window *xmir_win = ctx;
++    xorg_list_del(&xmir_win->link_damage);
++}
++
++void
++xmir_window_enable_damage_tracking(xmir_window *xmir_win)
++{
++    WindowPtr win = xmir_win->win;
++
++    if (xmir_win->damage != NULL)
++        return;
++
++    xorg_list_init(&xmir_win->link_damage);
++    xmir_win->damage = DamageCreate(damage_report, damage_destroy,
++                                    DamageReportNonEmpty, TRUE,
++                                    win->drawable.pScreen, xmir_win);
++    DamageRegister(&win->drawable, xmir_win->damage);
++
++    for (int i = 0; i < MIR_MAX_BUFFER_AGE; i++) {
++        RegionNull(&xmir_win->past_damage[i]);
++    }
++    xmir_win->damage_index = 0;
++    xmir_win->damaged = 0;
++}
++
++void
++xmir_window_disable_damage_tracking(xmir_window *xmir_win)
++{
++    if (xmir_win->damage != NULL) {
++        DamageUnregister(xmir_win->damage);
++        DamageDestroy(xmir_win->damage);
++        xmir_win->damage = NULL;
++    }
++}
++
++static Bool
++xmir_create_window(WindowPtr win)
++{
++    ScreenPtr screen = win->drawable.pScreen;
++    xmir_screen *xmir = xmir_screen_get(screen);
++    Bool ret;
++
++    screen->CreateWindow = xmir->CreateWindow;
++    ret = (*screen->CreateWindow)(win);
++    screen->CreateWindow = xmir_create_window;
++
++    /* Until we support rootless operation, we care only for the root
++     * window, which has no parent.
++     */
++    if (win->parent == NULL) {
++        /* The CRTC setup has already created the root_window_fragments
++           array. We need to hook the root window into it */
++        for (int i = 0; xmir->root_window_fragments[i] != NULL; i++) {
++            xmir->root_window_fragments[i]->win = win;
++
++            /* TODO: This creates one Damage tracker per fragment; we only
++               really need one, though */
++            xmir_window_enable_damage_tracking(xmir->root_window_fragments[i]);
++        }
++    }
++    return ret;
++}
++
++static Bool
++xmir_destroy_window(WindowPtr win)
++{
++    ScreenPtr screen = win->drawable.pScreen;
++    xmir_screen *xmir = xmir_screen_get(screen);
++    Bool ret;
++
++    screen->DestroyWindow = xmir->DestroyWindow;
++    ret = (*screen->DestroyWindow)(win);
++    screen->DestroyWindow = xmir_destroy_window;
++
++    /* Until we support rootless operation, we care only for the root
++     * window, which has no parent.
++     */
++    if (win->parent == NULL) {
++        /* Break the link with the root_window_fragments */
++        for (int i = 0; xmir->root_window_fragments[i] != NULL; i++) {
++            xmir->root_window_fragments[i]->win = NULL;
++
++            /* We cannot use xmir_window_disable_damage_tracking here because
++             * the Damage extension will also clean it up on window destruction
++            */
++            xorg_list_del(&xmir->root_window_fragments[i]->link_damage);
++        }
++    }
++
++    return ret;
++}
++
++Bool
++xmir_screen_init_window(ScreenPtr screen, xmir_screen *xmir)
++{
++    if (!dixRegisterPrivateKey(&xmir_window_private_key, PRIVATE_WINDOW, 0))
++        return FALSE;
++
++    xmir->CreateWindow = screen->CreateWindow;
++    screen->CreateWindow = xmir_create_window;
++    xmir->DestroyWindow = screen->DestroyWindow;
++    screen->DestroyWindow = xmir_destroy_window;
++
++    xmir->submit_rendering_handler =
++        xmir_register_handler(&xmir_handle_buffer_available,
++                              sizeof (xmir_window *));
++    if (xmir->submit_rendering_handler == NULL)
++        return FALSE;
++
++    return TRUE;
++}
+--- /dev/null
++++ b/hw/xfree86/xmir/xmir.c
+@@ -0,0 +1,263 @@
++/*
++ * Copyright © 2012 Canonical, Inc
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Soft-
++ * ware"), to deal in the Software without restriction, including without
++ * limitation the rights to use, copy, modify, merge, publish, distribute,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, provided that the above copyright
++ * notice(s) and this permission notice appear in all copies of the Soft-
++ * ware and that both the above copyright notice(s) and this permission
++ * notice appear in supporting documentation.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
++ * ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY
++ * RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
++ * THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSE-
++ * QUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
++ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFOR-
++ * MANCE OF THIS SOFTWARE.
++ *
++ * Except as contained in this notice, the name of a copyright holder shall
++ * not be used in advertising or otherwise to promote the sale, use or
++ * other dealings in this Software without prior written authorization of
++ * the copyright holder.
++ *
++ * Authors:
++ *   Christopher James Halse Rogers (christopher.halse.rogers@canonical.com)
++ */
++
++#ifdef HAVE_XORG_CONFIG_H
++#include <xorg-config.h>
++#endif
++
++#include "xmir.h"
++#include "xmir-private.h"
++
++#include "list.h"
++#include "xf86.h"
++#include "xf86Crtc.h"
++#include "xf86Priv.h"
++
++#include <xf86drm.h>
++#include <string.h>
++
++#include <mir_toolkit/mir_client_library.h>
++#include <mir_toolkit/mir_client_library_drm.h>
++
++static DevPrivateKeyRec xmir_screen_private_key;
++/*
++ * We have only a single Mir connection, regardless of how many
++ * drivers load.
++ */
++static MirConnection *conn;
++
++MirConnection *
++xmir_connection_get(void)
++{
++    return conn;
++}
++
++xmir_screen *
++xmir_screen_get(ScreenPtr screen)
++{
++    return dixGetPrivate(&screen->devPrivates, &xmir_screen_private_key);
++}
++
++_X_EXPORT int
++xmir_get_drm_fd(const char *busid)
++{
++    MirPlatformPackage platform;
++    int i, fd = -1;
++
++    mir_connection_get_platform(conn, &platform);
++
++    for (i = 0; i < platform.fd_items; ++i) {
++        char *fd_busid = drmGetBusid(platform.fd[i]);
++        if (!strcasecmp(busid, fd_busid))
++            fd = platform.fd[i];
++        drmFreeBusid(fd_busid);
++    }
++    return fd;
++}
++
++static void
++handle_auth_magic(int status, void *ctx)
++{
++    int *retVal = ctx;
++    *retVal = status;
++}
++
++_X_EXPORT int
++xmir_auth_drm_magic(xmir_screen *xmir, uint32_t magic)
++{
++    int status;
++    mir_wait_for(mir_connection_drm_auth_magic(xmir_connection_get(),
++                                               magic,
++                                               &handle_auth_magic,
++                                               &status));
++    return status;
++}
++
++_X_EXPORT xmir_screen *
++xmir_screen_create(ScrnInfoPtr scrn)
++{
++    xmir_screen *xmir = calloc (1, sizeof *xmir);
++    if (xmir == NULL)
++        return NULL;
++
++    xmir->scrn = scrn;
++    xmir->dpms_on = TRUE;
++
++    return xmir;
++}
++
++_X_EXPORT Bool
++xmir_screen_pre_init(ScrnInfoPtr scrn, xmir_screen *xmir, xmir_driver *driver)
++{
++    xmir->driver = driver;
++    xorg_list_init(&xmir->damage_list);
++
++    if (!xmir_mode_pre_init(scrn, xmir))
++        return FALSE;
++
++    return TRUE;
++}
++
++static void xmir_handle_focus_event(void *ctx)
++{
++    Bool new_focus = *(Bool *)ctx;
++    xf86Msg(X_INFO, "[XMir] Handling focus event, new_focus = %s\n", new_focus ? "TRUE" : "FALSE");
++
++    /* TODO: Disable input on startup until we receive a usc ACK */
++    if (new_focus) {
++        xf86VTEnter();
++    }
++    else {
++        xf86VTLeave();
++    }
++}
++
++static void xmir_handle_lifecycle_event(MirConnection *unused, MirLifecycleState state, void *ctx)
++{
++    (void)unused;
++    xmir_screen *xmir = ctx;
++    Bool new_focus;
++    switch(state)
++    {
++    case mir_lifecycle_state_will_suspend:
++        new_focus = FALSE;
++        break;
++    case mir_lifecycle_state_resumed:
++        new_focus = TRUE;
++        break;
++    default:
++        xf86Msg(X_ERROR, "Received unknown Mir lifetime event\n");
++        return;
++    }
++    xmir_post_to_eventloop(xmir->focus_event_handler, &new_focus);
++}
++
++_X_EXPORT Bool
++xmir_screen_init(ScreenPtr screen, xmir_screen *xmir)
++{
++    if (!dixRegisterPrivateKey(&xmir_screen_private_key, PRIVATE_SCREEN, 0))
++        return FALSE;
++    dixSetPrivate(&screen->devPrivates, &xmir_screen_private_key, xmir);
++
++    if (!xmir_screen_init_window(screen, xmir))
++        return FALSE;
++
++    if (!xf86_cursors_init(screen, 0,0,0))
++        xf86Msg(X_WARNING, "xf86Cursor initialisation failed\n");
++
++    /* Hook up focus -> VT switch proxy */
++    xmir->focus_event_handler =
++        xmir_register_handler(&xmir_handle_focus_event,
++                              sizeof(Bool));
++    if (xmir->focus_event_handler == NULL)
++        return FALSE;
++
++    mir_connection_set_lifecycle_event_callback(xmir_connection_get(),
++                                                &xmir_handle_lifecycle_event,
++                                                xmir);
++
++    return TRUE;
++}
++
++_X_EXPORT void
++xmir_screen_close(ScreenPtr screen, xmir_screen *xmir)
++{
++
++}
++
++_X_EXPORT void
++xmir_screen_destroy(xmir_screen *xmir)
++{
++
++}
++
++_X_EXPORT void
++xmir_screen_for_each_damaged_window(xmir_screen *xmir, xmir_window_proc callback)
++{
++    xmir_window *xmir_win, *tmp_win;
++    xorg_list_for_each_entry_safe(xmir_win, tmp_win, &xmir->damage_list, link_damage) {
++        if (xmir_window_has_free_buffer(xmir_win) &&
++            xmir_window_is_dirty(xmir_win))
++            (*callback)(xmir_win, xmir_window_get_dirty(xmir_win));
++    }
++}
++
++static MODULESETUPPROTO(xMirSetup);
++static MODULETEARDOWNPROTO(xMirTeardown);
++
++static XF86ModuleVersionInfo VersRec = {
++    "xmir",
++    MODULEVENDORSTRING,
++    MODINFOSTRING1,
++    MODINFOSTRING2,
++    XORG_VERSION_CURRENT,
++    1, 0, 0,
++    ABI_CLASS_EXTENSION,
++    ABI_EXTENSION_VERSION,
++    MOD_CLASS_NONE,
++    {0, 0, 0, 0}
++};
++
++_X_EXPORT XF86ModuleData xmirModuleData = { &VersRec, xMirSetup, xMirTeardown };
++
++static void*
++xMirSetup(void* module, void* opts, int *errmaj, int *errmin)
++{
++    static Bool setupDone = FALSE;
++
++    if (setupDone) {
++        if (errmaj)
++            *errmaj = LDR_ONCEONLY;
++        return NULL;
++    }
++
++    conn = mir_connect_sync(mirSocket, mirID);
++
++    if (!mir_connection_is_valid(conn)) {
++        if (errmaj)
++            *errmaj = LDR_MODSPECIFIC;
++        FatalError("Failed to connect to Mir: %s\n",
++                   mir_connection_get_error_message(conn));
++        return NULL;
++    }
++
++    xmir_init_thread_to_eventloop();
++
++    setupDone = TRUE;
++
++    return module;
++}
++
++static void
++xMirTeardown(void* module)
++{
++}
+--- /dev/null
++++ b/hw/xfree86/xmir/xmir.h
+@@ -0,0 +1,104 @@
++/*
++ * Copyright © 2012 Canonical, Inc
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Soft-
++ * ware"), to deal in the Software without restriction, including without
++ * limitation the rights to use, copy, modify, merge, publish, distribute,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, provided that the above copyright
++ * notice(s) and this permission notice appear in all copies of the Soft-
++ * ware and that both the above copyright notice(s) and this permission
++ * notice appear in supporting documentation.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
++ * ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY
++ * RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
++ * THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSE-
++ * QUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
++ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFOR-
++ * MANCE OF THIS SOFTWARE.
++ *
++ * Except as contained in this notice, the name of a copyright holder shall
++ * not be used in advertising or otherwise to promote the sale, use or
++ * other dealings in this Software without prior written authorization of
++ * the copyright holder.
++ *
++ * Authors:
++ *   Christopher James Halse Rogers (christopher.halse.rogers@canonical.com)
++ */
++
++#ifndef _XMIR_H
++#define _XMIR_H
++
++#include <stdint.h>
++
++#include "xf86str.h"
++#include "scrnintstr.h"
++#include "window.h"
++
++#include <mir_toolkit/mir_client_library.h>
++
++typedef struct xmir_screen xmir_screen;
++typedef struct xmir_window xmir_window;
++
++typedef void (*xmir_window_proc)(xmir_window *xmir_win, RegionPtr damaged_region);
++
++#define XMIR_DRIVER_VERSION 1
++typedef struct {
++    int version;
++    xmir_window_proc BufferAvailableForWindow;
++} xmir_driver;
++
++_X_EXPORT int
++xmir_get_drm_fd(const char *busid);
++
++_X_EXPORT int
++xmir_auth_drm_magic(xmir_screen *xmir, uint32_t magic);
++
++_X_EXPORT xmir_screen *
++xmir_screen_create(ScrnInfoPtr scrn);
++
++_X_EXPORT Bool
++xmir_screen_pre_init(ScrnInfoPtr scrn, xmir_screen *xmir, xmir_driver *driver);
++
++_X_EXPORT Bool
++xmir_screen_init(ScreenPtr screen, xmir_screen *xmir);
++
++_X_EXPORT void
++xmir_screen_close(ScreenPtr screen, xmir_screen *xmir);
++
++_X_EXPORT void
++xmir_screen_destroy(xmir_screen *xmir);
++
++_X_EXPORT WindowPtr
++xmir_window_to_windowptr(xmir_window *xmir_win);
++
++_X_EXPORT int
++xmir_window_get_fd(xmir_window *xmir_win);
++
++_X_EXPORT int
++xmir_submit_rendering_for_window(xmir_window *xmir_win,
++                                 RegionPtr region);
++
++_X_EXPORT Bool
++xmir_window_has_free_buffer(xmir_window *xmir_win);
++
++_X_EXPORT RegionPtr
++xmir_window_get_dirty(xmir_window *xmir_win);
++
++_X_EXPORT Bool
++xmir_window_is_dirty(xmir_window *xmir_win);
++
++_X_EXPORT BoxPtr
++xmir_window_get_drawable_region(xmir_window *xmir_win);
++
++_X_EXPORT int32_t
++xmir_window_get_stride(xmir_window *xmir_win);
++
++_X_EXPORT void
++xmir_screen_for_each_damaged_window(xmir_screen *xmir, xmir_window_proc callback);
++
++#endif /* _XMIR_H */
+--- a/include/list.h
++++ b/include/list.h
+@@ -184,6 +184,14 @@
+     prev->next = next;
+ }
+ 
++static inline void
++xorg_list_move(struct xorg_list *entry, struct xorg_list *head)
++{
++    __xorg_list_del(entry->prev, entry->next);
++    __xorg_list_add(entry, head->prev, head);
++}
++
++
+ /**
+  * Remove the element from the list it is in. Using this function will reset
+  * the pointers to/from this element so it is removed from the list. It does
+--- a/include/xorg-server.h.in
++++ b/include/xorg-server.h.in
+@@ -234,4 +234,7 @@
+ /* byte order */
+ #undef X_BYTE_ORDER
+ 
++/* Build XMIR nested server */
++#undef XMIR
++
+ #endif /* _XORG_SERVER_H_ */
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -9,6 +9,9 @@
+ if RES
+ noinst_PROGRAMS += hashtabletest
+ endif
++if XMIR
++noinst_PROGRAMS += xmir-thread-proxy
++endif #XMIR
+ endif
+ check_LTLIBRARIES = libxservertest.la
+ 
+@@ -40,6 +43,8 @@
+ signal_logging_LDADD=$(TEST_LDADD)
+ hashtabletest_LDADD=$(TEST_LDADD)
+ os_LDADD=$(TEST_LDADD)
++xmir_thread_proxy_LDADD=$(TEST_LDADD) $(top_srcdir)/hw/xfree86/xmir/xmir-thread-proxy.c -lpthread
++xmir_thread_proxy_CFLAGS=$(AM_CFLAGS) $(XMIR_CFLAGS) -I$(top_srcdir)/hw/xfree86/xmir -I$(top_srcdir)/hw/xfree86/common
+ 
+ libxservertest_la_LIBADD = $(XSERVER_LIBS)
+ if XORG
+--- /dev/null
++++ b/test/xmir-thread-proxy.c
+@@ -0,0 +1,154 @@
++/*
++ * Copyright © 2012 Canonical, Inc
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Soft-
++ * ware"), to deal in the Software without restriction, including without
++ * limitation the rights to use, copy, modify, merge, publish, distribute,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, provided that the above copyright
++ * notice(s) and this permission notice appear in all copies of the Soft-
++ * ware and that both the above copyright notice(s) and this permission
++ * notice appear in supporting documentation.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
++ * ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY
++ * RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN
++ * THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSE-
++ * QUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
++ * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
++ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFOR-
++ * MANCE OF THIS SOFTWARE.
++ *
++ * Except as contained in this notice, the name of a copyright holder shall
++ * not be used in advertising or otherwise to promote the sale, use or
++ * other dealings in this Software without prior written authorization of
++ * the copyright holder.
++ *
++ * Authors:
++ *   Christopher James Halse Rogers (christopher.halse.rogers@canonical.com)
++ */
++
++#ifdef HAVE_DIX_CONFIG_H
++#include <dix-config.h>
++#endif
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <pthread.h>
++#include <unistd.h>
++
++#include "xmir-private.h"
++
++struct test_content {
++	int *variable;
++	int value;
++};
++
++static void
++_test_callback(void *msg_content)
++{
++	struct test_content *content = msg_content;
++	*content->variable = content->value;
++}
++
++static void
++xmir_test_marshall_to_eventloop(void)
++{
++	xmir_marshall_handler *test_marshaller;
++	struct test_content msg;
++	int check = 0;
++
++	xmir_init_thread_to_eventloop();
++
++	test_marshaller = xmir_register_handler(&_test_callback, sizeof msg);
++
++	msg.variable = &check;
++	msg.value = 1;
++
++	xmir_post_to_eventloop(test_marshaller, &msg);
++	xmir_process_from_eventloop();
++
++	assert(check == 1);
++}
++
++static void
++_racy_test_callback(void *msg_content)
++{
++	struct test_content *content = msg_content;
++	int new_value = *content->variable + 1;
++	/* Ensure the other threads get to run and see the old value of content->variable */
++	usleep(100);
++	*content->variable = new_value;
++}
++
++struct thread_context {
++	xmir_marshall_handler *marshaller;
++	struct test_content *msg;
++};
++
++static void *
++_post_racy_msg(void *thread_ctx)
++{
++	struct thread_context *ctx = thread_ctx;
++
++	xmir_post_to_eventloop(ctx->marshaller, ctx->msg);
++
++	return NULL;
++}
++
++#define NUM_THREADS 10
++
++static void
++xmir_test_many_threads_to_eventloop(void)
++{
++	pthread_t threads[NUM_THREADS];
++	pthread_attr_t attr;
++	xmir_marshall_handler *test_marshaller;
++	struct thread_context ctx;
++	struct test_content msg;
++	int check = 0, i;
++
++	pthread_attr_init(&attr);
++	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
++
++	xmir_init_thread_to_eventloop();
++
++	test_marshaller = xmir_register_handler(&_racy_test_callback, sizeof msg);
++
++	msg.variable = &check;
++
++	ctx.marshaller = test_marshaller;
++	ctx.msg = &msg;
++
++	for (i = 0; i < NUM_THREADS; i++) {
++		pthread_create(&threads[i], &attr, _post_racy_msg, (void *)&ctx);
++	}
++
++	pthread_attr_destroy(&attr);
++
++	for (i = 0; i < NUM_THREADS; i++) {
++		pthread_join(threads[i], NULL);
++	}
++
++	xmir_process_from_eventloop();
++
++	assert(check == NUM_THREADS);
++}
++
++static void
++xmir_test_refuses_to_marshall_too_large_msg(void)
++{
++	xmir_init_thread_to_eventloop();
++
++	assert(xmir_register_handler(&_test_callback, PIPE_BUF) == NULL);
++}
++
++int
++main(int argc, char **argv)
++{
++	xmir_test_marshall_to_eventloop();
++	xmir_test_many_threads_to_eventloop();
++	xmir_test_refuses_to_marshall_too_large_msg();
++}

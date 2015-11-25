@@ -1,0 +1,89 @@
+--- a/hw/xfree86/modes/xf86RandR12.c
++++ b/hw/xfree86/modes/xf86RandR12.c
+@@ -1800,7 +1800,8 @@
+             ScreenPtr cmScreen = pScreen->current_master;
+ 
+             xf86DetachOutputGPU(pScreen);
+-            AttachUnboundGPU(cmScreen, pScreen);
++            if (!pScreen->current_master)
++                AttachUnboundGPU(cmScreen, pScreen);
+         }
+         provider->output_source = NULL;
+         return TRUE;
+@@ -1811,7 +1812,8 @@
+ 
+     SetRootClip(source_provider->pScreen, FALSE);
+ 
+-    DetachUnboundGPU(pScreen);
++    if (!pScreen->current_master)
++        DetachUnboundGPU(pScreen);
+     AttachOutputGPU(source_provider->pScreen, pScreen);
+ 
+     provider->output_source = source_provider;
+@@ -1828,7 +1830,8 @@
+         if (provider->offload_sink) {
+             ScreenPtr cmScreen = pScreen->current_master;
+             xf86DetachOutputGPU(pScreen);
+-            AttachUnboundGPU(cmScreen, pScreen);
++            if (!pScreen->current_master)
++                AttachUnboundGPU(cmScreen, pScreen);
+         }
+ 
+         provider->offload_sink = NULL;
+@@ -1838,7 +1841,8 @@
+     if (provider->offload_sink == sink_provider)
+         return TRUE;
+ 
+-    DetachUnboundGPU(pScreen);
++    if (!pScreen->current_master)
++        DetachUnboundGPU(pScreen);
+     AttachOffloadGPU(sink_provider->pScreen, pScreen);
+ 
+     provider->offload_sink = sink_provider;
+@@ -1917,12 +1921,14 @@
+             config->randr_provider->offload_sink = NULL;
+             RRSetChanged(screen);
+         }
+-        else if (config->randr_provider->output_source) {
++
++        if (config->randr_provider->output_source) {
+             xf86DetachOutputGPU(screen);
+             config->randr_provider->output_source = NULL;
+             RRSetChanged(screen);
+         }
+-        else if (screen->current_master)
++
++        if (screen->current_master)
+             DetachUnboundGPU(screen);
+     }
+     config->randr_provider = NULL;
+--- a/dix/dispatch.c
++++ b/dix/dispatch.c
+@@ -3911,6 +3911,8 @@ AttachUnboundGPU(ScreenPtr pScreen, ScreenPtr new)
+     assert(new->isGPU);
+     assert(!new->current_master);
+     xorg_list_add(&new->unattached_head, &pScreen->unattached_list);
++    xorg_list_init(&new->offload_head);
++    xorg_list_init(&new->output_head);
+     new->current_master = pScreen;
+ }
+ 
+@@ -3937,7 +3937,8 @@
+ {
+     assert(slave->isGPU);
+     xorg_list_del(&slave->output_head);
+-    slave->current_master = NULL;
++    if (xorg_list_is_empty(&slave->offload_head))
++        slave->current_master = NULL;
+ }
+ 
+ void
+@@ -3953,6 +3954,7 @@
+ {
+     assert(slave->isGPU);
+     xorg_list_del(&slave->offload_head);
+-    slave->current_master = NULL;
++    if (xorg_list_is_empty(&slave->output_head))
++        slave->current_master = NULL;
+ }
+ 

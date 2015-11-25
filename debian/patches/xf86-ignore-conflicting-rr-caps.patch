@@ -1,0 +1,20 @@
+--- a/hw/xfree86/modes/xf86RandR12.c
++++ b/hw/xfree86/modes/xf86RandR12.c
+@@ -1569,10 +1569,16 @@
+     }
+ 
+     if (config->name) {
++        uint32_t caps = pScrn->capabilities;
+         config->randr_provider = RRProviderCreate(pScreen, config->name,
+                                                   strlen(config->name));
+ 
+-        RRProviderSetCapabilities(config->randr_provider, pScrn->capabilities);
++        if (!pScreen->isGPU)
++            caps &= RR_Capability_SinkOffload | RR_Capability_SourceOutput;
++        else
++            caps &= RR_Capability_SourceOffload | RR_Capability_SinkOutput;
++
++        RRProviderSetCapabilities(config->randr_provider, caps);
+     }
+ 
+     return TRUE;
