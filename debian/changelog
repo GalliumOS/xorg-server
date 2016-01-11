@@ -1,3 +1,9 @@
+xorg-server (2:1.17.1-0ubuntu3.1-galliumos1) vivid; urgency=medium
+
+  * Set package version to match provenance
+
+ -- reynhout <reynhout@galliumos.org>  Sun, 10 Jan 2016 21:05:33 +0000
+
 xorg-server (2:1.17.1-0ubuntu4) vivid; urgency=medium
 
   * Add ChromeOS scaling and rotation patch
