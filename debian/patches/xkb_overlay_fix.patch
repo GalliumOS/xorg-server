@@ -76,7 +76,7 @@
  }
 --- a/xkb/xkbPrKeyEv.c
 +++ b/xkb/xkbPrKeyEv.c
-@@ -121,21 +121,45 @@
+@@ -121,21 +121,52 @@
          case XkbKB_Overlay2:
          {
              unsigned which;
@@ -85,6 +85,8 @@
 +	    int behavior_override = 0;
 +	    enum OverlayAction overlay_action = OA_Nothing;
 +
++	    /* Store the key code in the overlayHistory hash table or retrieve the
++	       existing entry */
 +	    if ((entry = ht_find(xkbi->overlayHistory, &overlay_key)) == NULL) {
 +		entry = ht_add(xkbi->overlayHistory, &overlay_key);
 +		if (entry) {
@@ -98,6 +100,10 @@
                  which = XkbOverlay2Mask;
 -            if ((xkbi->desc->ctrls->enabled_ctrls & which) == 0)
 +
++	    /* Force the overlay keycode or the original keycode, if necessary.
++	       It is possible that the overlay key is released between a key press
++	       and key release. overlay_action is set if we need to force the original
++               or enabled key code when this event occurs. */
 +	    if ((!entry->cur_state || entry->cur_state == ET_KeyPress) &&
 +		event->type == ET_KeyRelease) {
 +		overlay_action = OA_ForceOrig;
@@ -106,6 +112,7 @@
 +		event->type == ET_KeyRelease) {
 +		overlay_action = OA_ForceEnabled;
 +	    }
++
 +            if (overlay_action == OA_ForceOrig ||
 +		((xkbi->desc->ctrls->enabled_ctrls & which) == 0 &&
 +		 overlay_action != OA_ForceEnabled)) {
