@@ -1,0 +1,580 @@
+--- a/include/xkbsrv.h
++++ b/include/xkbsrv.h
+@@ -53,10 +53,12 @@
+ #define	XkbApplyVirtualModChanges	SrvXkbApplyVirtualModChanges
+ 
+ #include <X11/extensions/XKBproto.h>
++#include "hashtable.h"
+ #include "xkbstr.h"
+ #include "xkbrules.h"
+ #include "inputstr.h"
+ #include "events.h"
++#include "eventstr.h"
+ 
+ typedef struct _XkbInterest {
+     DeviceIntPtr dev;
+@@ -142,6 +144,17 @@
+     struct _XkbFilter *next;
+ } XkbFilterRec, *XkbFilterPtr;
+ 
++typedef struct _XkbOverlayEntry {
++    enum EventType cur_state;
++    enum EventType enabled_cur_state;
++} XkbOverlayEntry;
++
++enum OverlayAction {
++    OA_Nothing = 0,
++    OA_ForceOrig,
++    OA_ForceEnabled
++};
++
+ typedef struct _XkbSrvInfo {
+     XkbStateRec prev_state;
+     XkbStateRec state;
+@@ -189,6 +202,8 @@
+ 
+     int szFilters;
+     XkbFilterPtr filters;
++
++    HashTable overlayHistory;
+ } XkbSrvInfoRec, *XkbSrvInfoPtr;
+ 
+ #define	XkbSLI_IsDefault	(1L<<0)
+--- a/xkb/xkbInit.c
++++ b/xkb/xkbInit.c
+@@ -484,6 +484,9 @@
+     XkbControlsPtr ctrls;
+ 
+     xkb = xkbi->desc;
++    xkbi->overlayHistory = ht_create(sizeof(XID), sizeof(XkbOverlayEntry),
++				     ht_resourceid_hash, ht_resourceid_compare,
++				     NULL);
+     /* 12/31/94 (ef) -- XXX! Should check if controls loaded from file */
+     if (XkbAllocControls(xkb, XkbAllControlsMask) != Success)
+         FatalError("Couldn't allocate keyboard controls\n");
+@@ -644,6 +647,10 @@
+  unwind_desc:
+     XkbFreeKeyboard(xkb, 0, TRUE);
+  unwind_info:
++    if (xkbi->overlayHistory) {
++	ht_destroy(xkbi->overlayHistory);
++	free(xkbi->overlayHistory);
++    }
+     free(xkbi);
+     dev->key->xkbInfo = NULL;
+  unwind_kbdfeed:
+@@ -716,6 +723,10 @@
+         XkbFreeKeyboard(xkbi->desc, XkbAllComponentsMask, TRUE);
+         xkbi->desc = NULL;
+     }
++    if (xkbi->overlayHistory) {
++	ht_destroy(xkbi->overlayHistory);
++	free(xkbi->overlayHistory);
++    }
+     free(xkbi);
+     return;
+ }
+--- a/xkb/xkbPrKeyEv.c
++++ b/xkb/xkbPrKeyEv.c
+@@ -121,21 +121,45 @@
+         case XkbKB_Overlay2:
+         {
+             unsigned which;
++	    XID overlay_key = event->detail.key;
++	    XkbOverlayEntry *entry;
++	    int behavior_override = 0;
++	    enum OverlayAction overlay_action = OA_Nothing;
++
++	    if ((entry = ht_find(xkbi->overlayHistory, &overlay_key)) == NULL) {
++		entry = ht_add(xkbi->overlayHistory, &overlay_key);
++		if (entry) {
++		    entry->cur_state = 0;
++		}
++	    }
+ 
+             if (behavior.type == XkbKB_Overlay1)
+                 which = XkbOverlay1Mask;
+             else
+                 which = XkbOverlay2Mask;
+-            if ((xkbi->desc->ctrls->enabled_ctrls & which) == 0)
++
++	    if ((!entry->cur_state || entry->cur_state == ET_KeyPress) &&
++		event->type == ET_KeyRelease) {
++		overlay_action = OA_ForceOrig;
++	    }
++	    if (entry->enabled_cur_state == ET_KeyPress &&
++		event->type == ET_KeyRelease) {
++		overlay_action = OA_ForceEnabled;
++	    }
++            if (overlay_action == OA_ForceOrig ||
++		((xkbi->desc->ctrls->enabled_ctrls & which) == 0 &&
++		 overlay_action != OA_ForceEnabled)) {
++		entry->cur_state = event->type;
+                 break;
++	    }
++
+             if ((behavior.data >= xkbi->desc->min_key_code) &&
+                 (behavior.data <= xkbi->desc->max_key_code)) {
+                 event->detail.key = behavior.data;
+-                /* 9/11/94 (ef) -- XXX! need to match release with */
+-                /*                 press even if the state of the  */
+-                /*                 corresponding overlay control   */
+-                /*                 changes while the key is down   */
+-            }
++		entry->enabled_cur_state = event->type;
++            } else {
++		entry->cur_state = event->type;
++	    }
+         }
+             break;
+         default:
+--- a/xkb/Makefile.am
++++ b/xkb/Makefile.am
+@@ -25,7 +25,8 @@
+         xkmread.c \
+         xkbtext.c \
+         xkbfmisc.c \
+-        xkbout.c
++        xkbout.c \
++        hashtable.c
+ 
+ X11_SRCS = \
+         XKBMisc.c \
+--- /dev/null
++++ b/xkb/hashtable.c
+@@ -0,0 +1,295 @@
++#ifdef HAVE_DIX_CONFIG_H
++#include <dix-config.h>
++#endif
++
++#include <stdlib.h>
++#include "misc.h"
++#include "hashtable.h"
++
++/* HashResourceID */
++#include "resource.h"
++
++#define INITHASHSIZE 6
++#define MAXHASHSIZE 11
++
++struct HashTableRec {
++    int             keySize;
++    int             dataSize;
++
++    int             elements;   /* number of elements inserted */
++    int             bucketBits; /* number of buckets is 1 << bucketBits */
++    struct xorg_list *buckets;  /* array of bucket list heads */
++
++    HashFunc        hash;
++    HashCompareFunc compare;
++
++    void            *cdata;
++};
++
++typedef struct {
++    struct xorg_list l;
++    void *key;
++    void *data;
++} BucketRec, *BucketPtr;
++
++HashTable
++ht_create(int             keySize,
++          int             dataSize,
++          HashFunc        hash,
++          HashCompareFunc compare,
++          void            *cdata)
++{
++    int c;
++    int numBuckets;
++    HashTable ht = malloc(sizeof(struct HashTableRec));
++
++    if (!ht) {
++        return NULL;
++    }
++
++    ht->keySize = keySize;
++    ht->dataSize = dataSize;
++    ht->hash = hash;
++    ht->compare = compare;
++    ht->elements = 0;
++    ht->bucketBits = INITHASHSIZE;
++    numBuckets = 1 << ht->bucketBits;
++    ht->buckets = malloc(numBuckets * sizeof(*ht->buckets));
++    ht->cdata = cdata;
++
++    if (ht->buckets) {
++        for (c = 0; c < numBuckets; ++c) {
++            xorg_list_init(&ht->buckets[c]);
++        }
++        return ht;
++    } else {
++        free(ht);
++        return NULL;
++    }
++}
++
++void
++ht_destroy(HashTable ht)
++{
++    int c;
++    BucketPtr it, tmp;
++    int numBuckets = 1 << ht->bucketBits;
++    for (c = 0; c < numBuckets; ++c) {
++        xorg_list_for_each_entry_safe(it, tmp, &ht->buckets[c], l) {
++            xorg_list_del(&it->l);
++            free(it);
++        }
++    }
++    free(ht->buckets);
++}
++
++static Bool
++double_size(HashTable ht)
++{
++    struct xorg_list *newBuckets;
++    int numBuckets = 1 << ht->bucketBits;
++    int newBucketBits = ht->bucketBits + 1;
++    int newNumBuckets = 1 << newBucketBits;
++    int c;
++
++    newBuckets = malloc(newNumBuckets * sizeof(*ht->buckets));
++    if (newBuckets) {
++        for (c = 0; c < newNumBuckets; ++c) {
++            xorg_list_init(&newBuckets[c]);
++        }
++
++        for (c = 0; c < numBuckets; ++c) {
++            BucketPtr it, tmp;
++            xorg_list_for_each_entry_safe(it, tmp, &ht->buckets[c], l) {
++                struct xorg_list *newBucket =
++                    &newBuckets[ht->hash(ht->cdata, it->key, newBucketBits)];
++                xorg_list_del(&it->l);
++                xorg_list_add(&it->l, newBucket);
++            }
++        }
++        free(ht->buckets);
++
++        ht->buckets = newBuckets;
++        ht->bucketBits = newBucketBits;
++        return TRUE;
++    } else {
++        return FALSE;
++    }
++}
++
++void *
++ht_add(HashTable ht, const void *key)
++{
++    unsigned index = ht->hash(ht->cdata, key, ht->bucketBits);
++    struct xorg_list *bucket = &ht->buckets[index];
++    BucketRec *elem = calloc(1, sizeof(BucketRec));
++    if (!elem) {
++        goto outOfMemory;
++    }
++    elem->key = malloc(ht->keySize);
++    if (!elem->key) {
++        goto outOfMemory;
++    }
++    /* we avoid signaling an out-of-memory error if dataSize is 0 */
++    elem->data = calloc(1, ht->dataSize);
++    if (ht->dataSize && !elem->data) {
++        goto outOfMemory;
++    }
++    xorg_list_add(&elem->l, bucket);
++    ++ht->elements;
++
++    memcpy(elem->key, key, ht->keySize);
++
++    if (ht->elements > 4 * (1 << ht->bucketBits) &&
++        ht->bucketBits < MAXHASHSIZE) {
++        if (!double_size(ht)) {
++            --ht->elements;
++            xorg_list_del(&elem->l);
++            goto outOfMemory;
++        }
++    }
++
++    /* if memory allocation has failed due to dataSize being 0, return
++       a "dummy" pointer pointing at the of the key */
++    return elem->data ? elem->data : ((char*) elem->key + ht->keySize);
++
++ outOfMemory:
++    if (elem) {
++        free(elem->key);
++        free(elem->data);
++        free(elem);
++    }
++
++    return NULL;
++}
++
++void
++ht_remove(HashTable ht, const void *key)
++{
++    unsigned index = ht->hash(ht->cdata, key, ht->bucketBits);
++    struct xorg_list *bucket = &ht->buckets[index];
++    BucketPtr it;
++
++    xorg_list_for_each_entry(it, bucket, l) {
++        if (ht->compare(ht->cdata, key, it->key) == 0) {
++            xorg_list_del(&it->l);
++            --ht->elements;
++            free(it->key);
++            free(it->data);
++            free(it);
++            return;
++        }
++    }
++}
++
++void *
++ht_find(HashTable ht, const void *key)
++{
++    unsigned index = ht->hash(ht->cdata, key, ht->bucketBits);
++    struct xorg_list *bucket = &ht->buckets[index];
++    BucketPtr it;
++
++    xorg_list_for_each_entry(it, bucket, l) {
++        if (ht->compare(ht->cdata, key, it->key) == 0) {
++            return it->data ? it->data : ((char*) it->key + ht->keySize);
++        }
++    }
++
++    return NULL;
++}
++
++void
++ht_dump_distribution(HashTable ht)
++{
++    int c;
++    int numBuckets = 1 << ht->bucketBits;
++    for (c = 0; c < numBuckets; ++c) {
++        BucketPtr it;
++        int n = 0;
++
++        xorg_list_for_each_entry(it, &ht->buckets[c], l) {
++            ++n;
++        }
++        printf("%d: %d\n", c, n);
++    }
++}
++
++/* Picked the function from http://burtleburtle.net/bob/hash/doobs.html by
++   Bob Jenkins, which is released in public domain */
++static CARD32
++one_at_a_time_hash(const void *data, int len)
++{
++    CARD32 hash;
++    int i;
++    const char *key = data;
++    for (hash=0, i=0; i<len; ++i) {
++        hash += key[i];
++        hash += (hash << 10);
++        hash ^= (hash >> 6);
++    }
++    hash += (hash << 3);
++    hash ^= (hash >> 11);
++    hash += (hash << 15);
++    return hash;
++}
++
++unsigned
++ht_generic_hash(void *cdata, const void *ptr, int numBits)
++{
++    HtGenericHashSetupPtr setup = cdata;
++    return one_at_a_time_hash(ptr, setup->keySize) & ~((~0) << numBits);
++}
++
++int
++ht_generic_compare(void *cdata, const void *l, const void *r)
++{
++    HtGenericHashSetupPtr setup = cdata;
++    return memcmp(l, r, setup->keySize);
++}
++
++unsigned
++ht_resourceid_hash(void * cdata, const void * data, int numBits)
++{
++    const XID* idPtr = data;
++    XID id = *idPtr & RESOURCE_ID_MASK;
++    (void) cdata;
++    return HashResourceID(id, numBits);
++}
++
++int
++ht_resourceid_compare(void* cdata, const void* a, const void* b)
++{
++    const XID* xa = a;
++    const XID* xb = b;
++    (void) cdata;
++    return
++        *xa < *xb ? -1 :
++        *xa > *xb ? 1 :
++        0;
++}
++
++void
++ht_dump_contents(HashTable ht,
++                 void (*print_key)(void *opaque, void *key),
++                 void (*print_value)(void *opaque, void *value),
++                 void* opaque)
++{
++    int c;
++    int numBuckets = 1 << ht->bucketBits;
++    for (c = 0; c < numBuckets; ++c) {
++        BucketPtr it;
++        int n = 0;
++
++        printf("%d: ", c);
++        xorg_list_for_each_entry(it, &ht->buckets[c], l) {
++            if (n > 0) {
++                printf(", ");
++            }
++            print_key(opaque, it->key);
++            printf("->");
++            print_value(opaque, it->data);
++            ++n;
++        }
++        printf("\n");
++    }
++}
+--- /dev/null
++++ b/xkb/hashtable.h
+@@ -0,0 +1,137 @@
++#ifndef HASHTABLE_H
++#define HASHTABLE_H 1
++
++#include <dix-config.h>
++#include <X11/Xfuncproto.h>
++#include <X11/Xdefs.h>
++#include "list.h"
++
++/** @brief A hashing function.
++
++  @param[in/out] cdata  Opaque data that can be passed to HtInit that will
++                        eventually end up here
++  @param[in] ptr        The data to be hashed. The size of the data, if
++                        needed, can be configured via a record that can be
++                        passed via cdata.
++  @param[in] numBits    The number of bits this hash needs to have in the
++                        resulting hash
++
++  @return  A numBits-bit hash of the data
++*/
++typedef unsigned (*HashFunc)(void * cdata, const void * ptr, int numBits);
++
++/** @brief A comparison function for hashed keys.
++
++  @param[in/out] cdata  Opaque data that ca be passed to Htinit that will
++                        eventually end up here
++  @param[in] l          The left side data to be compared
++  @param[in] r          The right side data to be compared
++
++  @return -1 if l < r, 0 if l == r, 1 if l > r
++*/
++typedef int (*HashCompareFunc)(void * cdata, const void * l, const void * r);
++
++struct HashTableRec;
++
++typedef struct HashTableRec *HashTable;
++
++/** @brief  A configuration for HtGenericHash */
++typedef struct {
++    int             keySize;
++} HtGenericHashSetupRec, *HtGenericHashSetupPtr;
++
++/** @brief  ht_create initalizes a hash table for a certain hash table
++            configuration
++
++    @param[out] ht       The hash table structure to initialize
++    @param[in] keySize   The key size in bytes
++    @param[in] dataSize  The data size in bytes
++    @param[in] hash      The hash function to use for hashing keys
++    @param[in] compare   The comparison function for hashing keys
++    @param[in] cdata     Opaque data that will be passed to hash and
++                         comparison functions
++*/
++extern _X_EXPORT HashTable ht_create(int             keySize,
++                                     int             dataSize,
++                                     HashFunc        hash,
++                                     HashCompareFunc compare,
++                                     void            *cdata);
++/** @brief  HtDestruct deinitializes the structure. It does not free the
++            memory allocated to HashTableRec
++*/
++extern _X_EXPORT void ht_destroy(HashTable ht);
++
++/** @brief  Adds a new key to the hash table. The key will be copied
++            and a pointer to the value will be returned. The data will
++            be initialized with zeroes.
++
++  @param[in/out] ht  The hash table
++  @param[key] key    The key. The contents of the key will be copied.
++
++  @return On error NULL is returned, otherwise a pointer to the data
++          associated with the newly inserted key.
++
++  @note  If dataSize is 0, a pointer to the end of the key may be returned
++         to avoid returning NULL. Obviously the data pointed cannot be
++         modified, as implied by dataSize being 0.
++*/
++extern _X_EXPORT void *ht_add(HashTable ht, const void *key);
++
++/** @brief  Removes a key from the hash table along with its
++            associated data, which will be free'd.
++*/
++extern _X_EXPORT void ht_remove(HashTable ht, const void *key);
++
++/** @brief  Finds the associated data of a key from the hash table.
++
++   @return  If the key cannot be found, the function returns NULL.
++            Otherwise it returns a pointer to the data associated
++            with the key.
++
++   @note  If dataSize == 0, this function may return NULL
++          even if the key has been inserted! If dataSize == NULL,
++          use HtMember instead to determine if a key has been
++          inserted.
++*/
++extern _X_EXPORT void *ht_find(HashTable ht, const void *key);
++
++/** @brief  A generic hash function */
++extern _X_EXPORT unsigned ht_generic_hash(void *cdata,
++                                          const void *ptr,
++                                          int numBits);
++
++/** @brief  A generic comparison function. It compares data byte-wise. */
++extern _X_EXPORT int ht_generic_compare(void *cdata,
++                                        const void *l,
++                                        const void *r);
++
++/** @brief  A debugging function that dumps the distribution of the
++            hash table: for each bucket, list the number of elements
++            contained within. */
++extern _X_EXPORT void ht_dump_distribution(HashTable ht);
++
++/** @brief  A debugging function that dumps the contents of the hash
++            table: for each bucket, list the elements contained
++            within. */
++extern _X_EXPORT void ht_dump_contents(HashTable ht,
++                                       void (*print_key)(void *opaque, void *key),
++                                       void (*print_value)(void *opaque, void *value),
++                                       void* opaque);
++
++/** @brief  A hashing function to be used for hashing resource IDs when
++            used with HashTables. It makes no use of cdata, so that can
++            be NULL. It uses HashXID underneath, and should HashXID be
++            unable to hash the value, it switches into using the generic
++            hash function. */
++extern _X_EXPORT unsigned ht_resourceid_hash(void *cdata,
++                                             const void * data,
++                                             int numBits);
++
++/** @brief  A comparison function to be used for comparing resource
++            IDs when used with HashTables. It makes no use of cdata,
++            so that can be NULL. */
++extern _X_EXPORT int ht_resourceid_compare(void *cdata,
++                                           const void *a,
++                                           const void *b);
++
++#endif // HASHTABLE_H
