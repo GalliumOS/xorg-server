@@ -31,6 +31,7 @@
 #include <X11/Xmd.h>
 
 #include "compiler.h"
+#include "linux.h"
 
 #include "xf86.h"
 #include "xf86Priv.h"
@@ -62,89 +63,131 @@ drain_console(int fd, void *closure)
     }
 }
 
-static void
+static int
 switch_to(int vt, const char *from)
 {
     int ret;
 
     SYSCALL(ret = ioctl(xf86Info.consoleFd, VT_ACTIVATE, vt));
-    if (ret < 0)
-        FatalError("%s: VT_ACTIVATE failed: %s\n", from, strerror(errno));
+    if (ret < 0) {
+        xf86Msg(X_WARNING, "%s: VT_ACTIVATE failed: %s\n", from, strerror(errno));
+        return 0;
+    }
 
     SYSCALL(ret = ioctl(xf86Info.consoleFd, VT_WAITACTIVE, vt));
-    if (ret < 0)
-        FatalError("%s: VT_WAITACTIVE failed: %s\n", from, strerror(errno));
+    if (ret < 0) {
+        xf86Msg(X_WARNING, "%s: VT_WAITACTIVE failed: %s\n", from, strerror(errno));
+        return 0;
+    }
+
+    return 1;
 }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 
-void
-xf86OpenConsole(void)
+int
+linux_parse_vt_settings(int may_fail)
 {
     int i, fd = -1, ret, current_vt = -1;
-    struct vt_mode VT;
     struct vt_stat vts;
     struct stat st;
     MessageType from = X_PROBED;
     const char *tty0[] = { "/dev/tty0", "/dev/vc/0", NULL };
+
+    /* Only do this once */
+    static int vt_settings_parsed = 0;
+
+    if (vt_settings_parsed)
+        return 1;
+
+    /*
+     * setup the virtual terminal manager
+     */
+    if (xf86Info.vtno != -1) {
+        from = X_CMDLINE;
+    }
+    else {
+
+        i = 0;
+        while (tty0[i] != NULL) {
+            if ((fd = open(tty0[i], O_WRONLY, 0)) >= 0)
+                break;
+            i++;
+        }
+
+        if (fd < 0) {
+            if (may_fail)
+                return 0;
+            FatalError("parse_vt_settings: Cannot open /dev/tty0 (%s)\n",
+                       strerror(errno));
+        }
+
+        if (xf86Info.ShareVTs) {
+            SYSCALL(ret = ioctl(fd, VT_GETSTATE, &vts));
+            if (ret < 0) {
+                if (may_fail)
+                    return 0;
+                FatalError("parse_vt_settings: Cannot find the current"
+                           " VT (%s)\n", strerror(errno));
+            }
+            xf86Info.vtno = vts.v_active;
+        }
+        else {
+            SYSCALL(ret = ioctl(fd, VT_OPENQRY, &xf86Info.vtno));
+            if (ret < 0) {
+                if (may_fail)
+                    return 0;
+                FatalError("parse_vt_settings: Cannot find a free VT: "
+                           "%s\n", strerror(errno));
+            }
+            if (xf86Info.vtno == -1) {
+                if (may_fail)
+                    return 0;
+                FatalError("parse_vt_settings: Cannot find a free VT\n");
+            }
+        }
+        close(fd);
+    }
+
+    xf86Msg(from, "using VT number %d\n\n", xf86Info.vtno);
+
+    /* Some of stdin / stdout / stderr maybe redirected to a file */
+    for (i = STDIN_FILENO; i <= STDERR_FILENO; i++) {
+        ret = fstat(i, &st);
+        if (ret == 0 && S_ISCHR(st.st_mode) && major(st.st_rdev) == 4) {
+            current_vt = minor(st.st_rdev);
+            break;
+        }
+    }
+
+    if (!KeepTty && current_vt == xf86Info.vtno) {
+        xf86Msg(X_PROBED,
+                "controlling tty is VT number %d, auto-enabling KeepTty\n",
+                current_vt);
+        KeepTty = TRUE;
+    }
+
+    vt_settings_parsed = 1;
+    return 1;
+}
+
+int
+linux_get_keeptty(void)
+{
+    return KeepTty;
+}
+
+void
+xf86OpenConsole(void)
+{
+    int i, ret;
+    struct vt_stat vts;
+    struct vt_mode VT;
     const char *vcs[] = { "/dev/vc/%d", "/dev/tty%d", NULL };
 
     if (serverGeneration == 1) {
-        /*
-         * setup the virtual terminal manager
-         */
-        if (xf86Info.vtno != -1) {
-            from = X_CMDLINE;
-        }
-        else {
-
-            i = 0;
-            while (tty0[i] != NULL) {
-                if ((fd = open(tty0[i], O_WRONLY, 0)) >= 0)
-                    break;
-                i++;
-            }
-
-            if (fd < 0)
-                FatalError("xf86OpenConsole: Cannot open /dev/tty0 (%s)\n",
-                           strerror(errno));
-
-            if (xf86Info.ShareVTs) {
-                SYSCALL(ret = ioctl(fd, VT_GETSTATE, &vts));
-                if (ret < 0)
-                    FatalError("xf86OpenConsole: Cannot find the current"
-                               " VT (%s)\n", strerror(errno));
-                xf86Info.vtno = vts.v_active;
-            }
-            else {
-                SYSCALL(ret = ioctl(fd, VT_OPENQRY, &xf86Info.vtno));
-                if (ret < 0)
-                    FatalError("xf86OpenConsole: Cannot find a free VT: "
-                               "%s\n", strerror(errno));
-                if (xf86Info.vtno == -1)
-                    FatalError("xf86OpenConsole: Cannot find a free VT\n");
-            }
-            close(fd);
-        }
-
-        xf86Msg(from, "using VT number %d\n\n", xf86Info.vtno);
-
-        /* Some of stdin / stdout / stderr maybe redirected to a file */
-        for (i = STDIN_FILENO; i <= STDERR_FILENO; i++) {
-            ret = fstat(i, &st);
-            if (ret == 0 && S_ISCHR(st.st_mode) && major(st.st_rdev) == 4) {
-                current_vt = minor(st.st_rdev);
-                break;
-            }
-        }
-
-        if (!KeepTty && current_vt == xf86Info.vtno) {
-            xf86Msg(X_PROBED,
-                    "controlling tty is VT number %d, auto-enabling KeepTty\n",
-                    current_vt);
-            KeepTty = TRUE;
-        }
+        linux_parse_vt_settings(FALSE);
 
         if (!KeepTty) {
             pid_t ppid = getppid();
@@ -190,25 +233,14 @@ xf86OpenConsole(void)
         else
             activeVT = vts.v_active;
 
-#if 0
-        if (!KeepTty) {
-            /*
-             * Detach from the controlling tty to avoid char loss
-             */
-            if ((i = open("/dev/tty", O_RDWR)) >= 0) {
-                SYSCALL(ioctl(i, TIOCNOTTY, 0));
-                close(i);
-            }
-        }
-#endif
-
         if (!xf86Info.ShareVTs) {
             struct termios nTty;
 
             /*
              * now get the VT.  This _must_ succeed, or else fail completely.
              */
-            switch_to(xf86Info.vtno, "xf86OpenConsole");
+            if (!switch_to(xf86Info.vtno, "xf86OpenConsole"))
+                FatalError("xf86OpenConsole: Switching VT failed\n");
 
             SYSCALL(ret = ioctl(xf86Info.consoleFd, VT_GETMODE, &VT));
             if (ret < 0)
@@ -269,7 +301,8 @@ xf86OpenConsole(void)
     else {                      /* serverGeneration != 1 */
         if (!xf86Info.ShareVTs && xf86Info.autoVTSwitch) {
             /* now get the VT */
-            switch_to(xf86Info.vtno, "xf86OpenConsole");
+            if (!switch_to(xf86Info.vtno, "xf86OpenConsole"))
+                FatalError("xf86OpenConsole: Switching VT failed\n");
         }
     }
 }

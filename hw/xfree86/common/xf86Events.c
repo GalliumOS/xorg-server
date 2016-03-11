@@ -180,7 +180,7 @@ ProcessInputEvents(void)
 void
 xf86ProcessActionEvent(ActionEvent action, void *arg)
 {
-    DebugF("ProcessActionEvent(%d,%x)\n", (int) action, arg);
+    DebugF("ProcessActionEvent(%d,%p)\n", (int) action, arg);
     switch (action) {
     case ACTION_TERMINATE:
         if (!xf86Info.dontZap) {
@@ -403,7 +403,7 @@ xf86ReleaseKeys(DeviceIntPtr pDev)
          i < keyc->xkbInfo->desc->max_key_code; i++) {
         if (key_is_down(pDev, i, KEY_POSTED)) {
             OsBlockSIGIO();
-            QueueKeyboardEvents(pDev, KeyRelease, i, NULL);
+            QueueKeyboardEvents(pDev, KeyRelease, i);
             OsReleaseSIGIO();
         }
     }
@@ -583,10 +583,11 @@ xf86VTEnter(void)
     /* Turn screen saver off when switching back */
     dixSaveScreens(serverClient, SCREEN_SAVER_FORCER, ScreenSaverReset);
 
-    /* If we use systemd-logind it will enable input devices for us */
-    if (!systemd_logind_controls_session())
-        for (pInfo = xf86InputDevs; pInfo; pInfo = pInfo->next)
+    for (pInfo = xf86InputDevs; pInfo; pInfo = pInfo->next) {
+        /* Devices with server managed fds get enabled on logind resume */
+        if (!(pInfo->flags & XI86_SERVER_FD))
             xf86EnableInputDeviceForVTSwitch(pInfo);
+    }
 
     for (ih = InputHandlers; ih; ih = ih->next) {
         if (ih->is_input)

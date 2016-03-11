@@ -1,6 +1,10 @@
+Description: Only set RR caps that are appropriate to main/gpu screen.
+Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
+Bug-Ubuntu: https://launchpad.net/bugs/1277014
+
 --- a/hw/xfree86/modes/xf86RandR12.c
 +++ b/hw/xfree86/modes/xf86RandR12.c
-@@ -1569,10 +1569,16 @@
+@@ -1548,10 +1548,16 @@ xf86RandR12CreateObjects12(ScreenPtr pSc
      }
  
      if (config->name) {

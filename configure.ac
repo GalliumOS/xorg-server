@@ -26,9 +26,9 @@ dnl
 dnl Process this file with autoconf to create configure.
 
 AC_PREREQ(2.60)
-AC_INIT([xorg-server], 1.17.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
-RELEASE_DATE="2015-02-10"
-RELEASE_NAME="lambic"
+AC_INIT([xorg-server], 1.18.1, [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg], xorg-server)
+RELEASE_DATE="2016-02-08"
+RELEASE_NAME="Spanakopita"
 AC_CONFIG_SRCDIR([Makefile.am])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign dist-bzip2])
@@ -219,9 +219,27 @@ dnl Checks for library functions.
 AC_CHECK_FUNCS([backtrace ffs geteuid getuid issetugid getresuid \
 	getdtablesize getifaddrs getpeereid getpeerucred getprogname getzoneid \
 	mmap seteuid shmctl64 strncasecmp vasprintf vsnprintf walkcontext])
-AC_REPLACE_FUNCS([strcasecmp strcasestr strlcat strlcpy strndup])
+AC_REPLACE_FUNCS([reallocarray strcasecmp strcasestr strlcat strlcpy strndup])
 
 AC_CHECK_DECLS([program_invocation_short_name], [], [], [[#include <errno.h>]])
+
+dnl Check for SO_PEERCRED #define
+AC_CACHE_CHECK([for SO_PEERCRED in sys/socket.h],
+	       [xorg_cv_sys_have_so_peercred],
+	       [AC_EGREP_CPP(yes_have_so_peercred,[
+#include <sys/types.h>
+#include <sys/socket.h>
+#ifdef SO_PEERCRED
+yes_have_so_peercred
+#endif
+],
+	       [xorg_cv_sys_have_so_peercred=yes],
+	       [xorg_cv_sys_have_so_peercred=no])])
+
+dnl define NO_LOCAL_CLIENT_CRED if no getpeereid, getpeerucred or SO_PEERCRED
+if test "x$ac_cv_func_getpeereid" = xno && test "x$ac_cv_func_getpeerucred" = xno && test "x$xorg_cv_sys_have_so_peercred" = xno ; then
+	AC_DEFINE([NO_LOCAL_CLIENT_CRED], 1, [Define to 1 if no local socket credentials interface exists])
+fi
 
 dnl Find the math libary, then check for cbrt function in it.
 AC_CHECK_LIB(m, sqrt)
@@ -400,7 +418,7 @@ case $host_os in
 	AC_DEFINE(CSRG_BASED, 1, [System is BSD-like])
 	;;
   cygwin*|mingw*)
-	CFLAGS="$CFLAGS -DFD_SETSIZE=256"
+	CFLAGS="$CFLAGS -DFD_SETSIZE=512"
 	;;
 esac
 
@@ -547,11 +565,6 @@ AC_ARG_ENABLE(sparkle,AS_HELP_STRING([--enable-sparkle], [Enable updating of X11
 				[ XQUARTZ_SPARKLE="${enableval}" ],
 				[ XQUARTZ_SPARKLE="no" ])
 AC_SUBST([XQUARTZ_SPARKLE])
-AC_ARG_ENABLE(install-libxf86config,
-				AS_HELP_STRING([--enable-install-libxf86config],
-				[Install libxf86config (default: disabled)]),
-				[INSTALL_LIBXF86CONFIG=$enableval],
-				[INSTALL_LIBXF86CONFIG=no])
 AC_ARG_ENABLE(visibility,     AS_HELP_STRING([--enable-visibility], [Enable symbol visibility (default: auto)]),
 				[SYMBOL_VISIBILITY=$enableval],
 				[SYMBOL_VISIBILITY=auto])
@@ -560,17 +573,7 @@ dnl GLX build options
 AC_ARG_ENABLE(aiglx,          AS_HELP_STRING([--enable-aiglx], [Build accelerated indirect GLX (default: enabled)]),
                                 [AIGLX=$enableval],
                                 [AIGLX=yes])
-XORG_TLS
-AC_ARG_ENABLE(glx-tls,        AS_HELP_STRING([--enable-glx-tls], [Build GLX with TLS support (default: auto)]),
-                                [GLX_USE_TLS=$enableval
-                                 if test "x$GLX_USE_TLS" = "xyes" && test "${ac_cv_tls}" = "none" ; then
-                                   AC_MSG_ERROR([GLX with TLS support requested, but the compiler does not support it.])
-                                 fi],
-                                [GLX_USE_TLS=no
-                                 if test "${ac_cv_tls}" != "none" ; then
-                                   GLX_USE_TLS=yes
-                                 fi])
-AC_SUBST(GLX_TLS, ${GLX_USE_TLS})
+
 AC_ARG_WITH(khronos-spec-dir, AS_HELP_STRING([--with-khronos-spec-dir=PATH], [Path to Khronos OpenGL registry database files (default: auto)]),
 				[KHRONOS_SPEC_DIR="${withval}"],
 				[KHRONOS_SPEC_DIR=auto])
@@ -687,9 +690,6 @@ AM_CONDITIONAL(INT10_VM86, [test "x$INT10" = xvm86])
 AM_CONDITIONAL(INT10_X86EMU, [test "x$INT10" = xx86emu])
 AM_CONDITIONAL(INT10_STUB, [test "x$INT10" = xstub])
 
-dnl Handle installing libxf86config
-AM_CONDITIONAL(INSTALL_LIBXF86CONFIG, [test "x$INSTALL_LIBXF86CONFIG" = xyes])
-
 dnl DDX Detection... Yes, it's ugly to have it here... but we need to
 dnl handle this early on so that we don't require unsupported extensions
 case $host_os in
@@ -752,6 +752,11 @@ case $host_os in
 			XF86VIDMODE=no
 		fi
 		;;
+	gnu*)
+		DRM=no
+		DRI2=no
+		DRI3=no
+		;;
 	*) XQUARTZ=no ;;
 esac
 
@@ -781,8 +786,8 @@ APPLEWMPROTO="applewmproto >= 1.4"
 LIBXSHMFENCE="xshmfence >= 1.1"
 
 dnl Required modules
-XPROTO="xproto >= 7.0.26"
-RANDRPROTO="randrproto >= 1.4.0"
+XPROTO="xproto >= 7.0.28"
+RANDRPROTO="randrproto >= 1.5.0"
 RENDERPROTO="renderproto >= 0.11"
 XEXTPROTO="xextproto >= 7.2.99.901"
 INPUTPROTO="inputproto >= 2.3"
@@ -827,21 +832,26 @@ REQUIRED_MODULES="$FIXESPROTO $DAMAGEPROTO $XCMISCPROTO $XTRANS $BIGREQSPROTO $S
 
 dnl systemd socket activation
 dnl activate the code in libxtrans that grabs systemd's socket fds
+dnl libsystemd-daemon was moved into libsystemd in version 209
+LIBSYSTEMD="libsystemd >= 209"
 AC_ARG_WITH([systemd-daemon],
 	AS_HELP_STRING([--with-systemd-daemon],
 		[support systemd socket activation (default: auto)]),
 	[WITH_SYSTEMD_DAEMON=$withval], [WITH_SYSTEMD_DAEMON=auto])
-PKG_CHECK_MODULES([SYSTEMD_DAEMON], [libsystemd-daemon],
-                  [HAVE_SYSTEMD_DAEMON=yes], [HAVE_SYSTEMD_DAEMON=no])
-if test "x$WITH_SYSTEMD_DAEMON" = xauto; then
-	WITH_SYSTEMD_DAEMON="$HAVE_SYSTEMD_DAEMON"
-fi
-if test "x$WITH_SYSTEMD_DAEMON" = xyes; then
-	if test "x$HAVE_SYSTEMD_DAEMON" = xno; then
+if test "x$WITH_SYSTEMD_DAEMON" = "xyes" -o "x$WITH_SYSTEMD_DAEMON" = "xauto" ; then
+	PKG_CHECK_MODULES([SYSTEMD_DAEMON], [$LIBSYSTEMD],
+			  [HAVE_SYSTEMD_DAEMON=yes;
+			   LIBSYSTEMD_DAEMON="$LIBSYSTEMD"],
+			  [PKG_CHECK_MODULES([SYSTEMD_DAEMON], [libsystemd-daemon],
+					     [HAVE_SYSTEMD_DAEMON=yes;
+					      LIBSYSTEMD_DAEMON=libsystemd-daemon],
+					     [HAVE_SYSTEMD_DAEMON=no])])
+	if test "x$HAVE_SYSTEMD_DAEMON" = xyes; then
+		AC_DEFINE(HAVE_SYSTEMD_DAEMON, 1, [Define to 1 if libsystemd-daemon is available])
+		REQUIRED_LIBS="$REQUIRED_LIBS $LIBSYSTEMD_DAEMON"
+	elif test "x$WITH_SYSTEMD_DAEMON" = xyes; then
 		AC_MSG_ERROR([systemd support requested but no library has been found])
 	fi
-	AC_DEFINE(HAVE_SYSTEMD_DAEMON, 1, [Define to 1 if libsystemd-daemon is available])
-	REQUIRED_LIBS="$REQUIRED_LIBS libsystemd-daemon"
 fi
 AM_CONDITIONAL([HAVE_SYSTEMD_DAEMON], [test "x$HAVE_SYSTEMD_DAEMON" = "xyes"])
 
@@ -919,8 +929,6 @@ fi
 AM_CONDITIONAL(SYSTEMD_LOGIND, [test "x$SYSTEMD_LOGIND" = xyes])
 
 if test "x$SUID_WRAPPER" = xyes; then
-        dnl The wrapper uses libdrm headers, so ensure they are available
-        PKG_CHECK_MODULES([LIBDRM], $LIBDRM)
         dnl This is a define so that if some platforms want to put the wrapper
         dnl somewhere else this can be easily changed
         AC_DEFINE_DIR(SUID_WRAPPER_DIR, libexecdir, [Where to install the Xorg binary and Xorg.wrap])
@@ -1324,10 +1332,6 @@ if test "x$AIGLX" = xyes -a \( "x$DRI2" = xyes \); then
 fi
 AM_CONDITIONAL(AIGLX_DRI_LOADER, { test "x$DRI2" = xyes; } && test "x$AIGLX" = xyes)
 
-if test "x$GLX_USE_TLS" = xyes ; then
-	GLX_DEFINES="-DGLX_USE_TLS -DPTHREADS"
-	GLX_SYS_LIBS="$GLX_SYS_LIBS -lpthread"
-fi
 AC_SUBST([GLX_DEFINES])
 AC_SUBST([GLX_SYS_LIBS])
 
@@ -1529,8 +1533,6 @@ AC_DEFINE_UNQUOTED(VENDOR_NAME, ["$VENDOR_NAME"], [Vendor name])
 AC_DEFINE_UNQUOTED(VENDOR_NAME_SHORT, ["$VENDOR_NAME_SHORT"], [Vendor name])
 AC_DEFINE_UNQUOTED(VENDOR_RELEASE, [$VENDOR_RELEASE], [Vendor release])
 AC_DEFINE_UNQUOTED(VENDOR_MAN_VERSION, ["$VENDOR_MAN_VERSION"], [Vendor man version])
-
-AC_DEFINE(NO_LIBCWRAPPER, 1, [Define to 1 if modules should avoid the libcwrapper])
 
 if test "x$DEBUGGING" = xyes; then
        AC_DEFINE(DEBUG, 1, [Enable debugging code])
@@ -1754,7 +1756,7 @@ case "$host_os" in
 #		 XORG_DRIVER_LIBS="-Wl,-z,defs -Wl,-z,parent=${bindir}/Xorg"
          ],[],
 		[AC_LANG_SOURCE([extern int main(int argc, char **argv);
-			int call_main(void) { return main(0, NULL); }])])
+			int call_main(void) { return main(0, (void *)0); }])])
 	     rm -f conftest.parent
 	    ])
 	;;
@@ -1976,7 +1978,7 @@ if test "x$XORG" = xyes; then
 		  sparc*)	
 			SOLARIS_INOUT_ARCH="sparcv8plus"
 			;;
-		  i*86)	
+		  i*86|x86_64*)
 			if test x$SOLARIS_64 = xyes ; then
 				SOLARIS_INOUT_ARCH="amd64"
 			else
@@ -2003,11 +2005,6 @@ if test "x$XORG" = xyes; then
 		[Your OS is unknown.],
 		[If you are interested in porting Xorg to your platform,],
 		[please email xorg@lists.freedesktop.org.]))])
-		;;
-	esac
-
-	case $host_cpu in
-	  i*86)
 		;;
 	esac
 
@@ -2038,8 +2035,7 @@ if test "x$XORG" = xyes; then
 
 	if test "x$DRM" = xyes; then
 		dnl 2.4.46 is required for cursor hotspot support.
-		PKG_CHECK_EXISTS(libdrm >= 2.4.46)
-		XORG_DRIVER_MODESETTING=yes
+		PKG_CHECK_EXISTS(libdrm >= 2.4.46, XORG_DRIVER_MODESETTING=yes, XORG_DRIVER_MODESETTING=no)
 	fi
 
 	AC_SUBST([XORG_LIBS])
@@ -2124,6 +2120,10 @@ if test "x$GLAMOR" = xyes; then
 	if test "x$GBM" = xyes; then
 		AC_DEFINE(GLAMOR_HAS_GBM, 1,
 			  [Build glamor with GBM-based EGL support])
+		AC_CHECK_DECL(GBM_BO_USE_LINEAR,
+			[AC_DEFINE(GLAMOR_HAS_GBM_LINEAR, 1, [Have GBM_BO_USE_LINEAR])], [],
+			[#include <stdlib.h>
+			 #include <gbm.h>])
 	fi
 
 fi
@@ -2283,7 +2283,7 @@ if test "x$DMX" = xyes; then
 	fi
 	DMX_INCLUDES="$XEXT_INC $RENDER_INC $RECORD_INC"
 	XDMX_CFLAGS="$DMXMODULES_CFLAGS"
-	XDMX_LIBS="$FB_LIB $MI_LIB $XEXT_LIB $RENDER_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB  $DRI3_LIB $PRESENT_LIB $MIEXT_SYNC_LIB $MIEXT_SHADOW_LIB $MIEXT_DAMAGE_LIB $COMPOSITE_LIB $DAMAGE_LIB $MAIN_LIB $DIX_LIB $CONFIG_LIB $OS_LIB $FIXES_LIB"
+	XDMX_LIBS="$FB_LIB $MI_LIB $XEXT_LIB $RENDER_LIB $RECORD_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $DRI3_LIB $PRESENT_LIB $MIEXT_SYNC_LIB $MIEXT_SHADOW_LIB $MIEXT_DAMAGE_LIB $COMPOSITE_LIB $DAMAGE_LIB $MAIN_LIB $DIX_LIB $RANDR_LIB $CONFIG_LIB $OS_LIB $FIXES_LIB"
 	XDMX_SYS_LIBS="$DMXMODULES_LIBS"
 	AC_SUBST([XDMX_CFLAGS])
 	AC_SUBST([XDMX_LIBS])
@@ -2356,6 +2356,33 @@ if test "$KDRIVE" = yes; then
         fi
     fi
 
+    case $host_os in
+	*linux*)
+	    KDRIVE_OS_LIB='$(top_builddir)/hw/kdrive/linux/liblinux.la'
+            KDRIVELINUX=yes
+	    if test "x$KDRIVE_EVDEV" = xauto; then
+		KDRIVE_EVDEV=yes
+	    fi
+	    if test "x$KDRIVE_KBD" = xauto; then
+		KDRIVE_KBD=yes
+	    fi
+	    if test "x$KDRIVE_MOUSE" = xauto; then
+		KDRIVE_MOUSE=yes
+	    fi
+	    ;;
+	*)
+	    if test "x$KDRIVE_EVDEV" = xauto; then
+		KDRIVE_EVDEV=no
+	    fi
+	    if test "x$KDRIVE_KBD" = xauto; then
+		KDRIVE_KBD=no
+	    fi
+	    if test "x$KDRIVE_MOUSE" = xauto; then
+		KDRIVE_MOUSE=no
+	    fi
+	    ;;
+    esac
+
     if test "x$KDRIVE_KBD" = xyes; then
        AC_DEFINE(KDRIVE_KBD, 1, [Enable KDrive kbd driver])
     fi
@@ -2397,33 +2424,8 @@ if test "$KDRIVE" = yes; then
 
     KDRIVE_PURE_LIBS="$FB_LIB $MI_LIB $FIXES_LIB $XEXT_LIB $DBE_LIB $RECORD_LIB $GLX_LIBS $RANDR_LIB $RENDER_LIB $DAMAGE_LIB $DRI3_LIB $PRESENT_LIB $MIEXT_SYNC_LIB $MIEXT_DAMAGE_LIB $MIEXT_SHADOW_LIB $XI_LIB $XKB_LIB $XKB_STUB_LIB $COMPOSITE_LIB $OS_LIB"
     KDRIVE_LIB='$(top_builddir)/hw/kdrive/src/libkdrive.la'
-    case $host_os in
-	*linux*)
-	    KDRIVE_OS_LIB='$(top_builddir)/hw/kdrive/linux/liblinux.la'
-            KDRIVELINUX=yes
-	    if test "x$KDRIVE_EVDEV" = xauto; then
-		KDRIVE_EVDEV=yes
-	    fi
-	    if test "x$KDRIVE_KBD" = xauto; then
-		KDRIVE_KBD=yes
-	    fi
-	    if test "x$KDRIVE_MOUSE" = xauto; then
-		KDRIVE_MOUSE=yes
-	    fi
-	    ;;
-	*)
-	    if test "x$KDRIVE_EVDEV" = xauto; then
-		KDRIVE_EVDEV=no
-	    fi
-	    if test "x$KDRIVE_KBD" = xauto; then
-		KDRIVE_KBD=no
-	    fi
-	    if test "x$KDRIVE_MOUSE" = xauto; then
-		KDRIVE_MOUSE=no
-	    fi
-	    ;;
-    esac
-    KDRIVE_LOCAL_LIBS="$MAIN_LIB $DIX_LIB $KDRIVE_LIB"
+    KDRIVE_MAIN_LIB="$MAIN_LIB"
+    KDRIVE_LOCAL_LIBS="$DIX_LIB $KDRIVE_LIB"
     KDRIVE_LOCAL_LIBS="$KDRIVE_LOCAL_LIBS $FB_LIB $MI_LIB $KDRIVE_PURE_LIBS"
     KDRIVE_LOCAL_LIBS="$KDRIVE_LOCAL_LIBS $KDRIVE_OS_LIB"
     KDRIVE_LIBS="$KDRIVE_LOCAL_LIBS $XSERVER_SYS_LIBS $GLX_SYS_LIBS $DLOPEN_LIBS $TSLIB_LIBS"
@@ -2435,6 +2437,7 @@ AC_SUBST([KDRIVE_INCS])
 AC_SUBST([KDRIVE_PURE_INCS])
 AC_SUBST([KDRIVE_CFLAGS])
 AC_SUBST([KDRIVE_PURE_LIBS])
+AC_SUBST([KDRIVE_MAIN_LIB])
 AC_SUBST([KDRIVE_LOCAL_LIBS])
 AC_SUBST([KDRIVE_LIBS])
 AM_CONDITIONAL(KDRIVELINUX, [test "x$KDRIVELINUX" = xyes])

@@ -16,9 +16,12 @@ is" without express or implied warranty.
 #include <xnest-config.h>
 #endif
 
+#ifdef WIN32
+#include <X11/Xwindows.h>
+#endif
+
 #include <X11/X.h>
 #include <X11/Xproto.h>
-#include <xcb/xcb_keysyms.h>
 #include <X11/keysym.h>
 #include "screenint.h"
 #include "inputstr.h"
@@ -134,7 +137,7 @@ xnestKeyboardProc(DeviceIntPtr pDev, int onoff)
                                            max_keycode - min_keycode + 1,
                                            &mapWidth);
             len = (max_keycode - min_keycode + 1) * mapWidth;
-            keymap = (KeySym *) malloc(len * sizeof(KeySym));
+            keymap = xallocarray(len, sizeof(KeySym));
             for (i = 0; i < len; ++i)
                 keymap[i] = keymap64[i];
             XFree(keymap64);
@@ -248,7 +251,7 @@ xnestUpdateModifierState(unsigned int state)
 
             for (key = 0; key < MAP_LENGTH; key++)
                 if (keyc->xkbInfo->desc->map->modmap[key] & mask) {
-                    if (mask == XCB_MOD_MASK_LOCK) {
+                    if (mask == LockMask) {
                         xnestQueueKeyEvent(KeyPress, key);
                         xnestQueueKeyEvent(KeyRelease, key);
                     }
@@ -266,7 +269,7 @@ xnestUpdateModifierState(unsigned int state)
             for (key = 0; key < MAP_LENGTH; key++)
                 if (keyc->xkbInfo->desc->map->modmap[key] & mask) {
                     xnestQueueKeyEvent(KeyPress, key);
-                    if (mask == XCB_MOD_MASK_LOCK)
+                    if (mask == LockMask)
                         xnestQueueKeyEvent(KeyRelease, key);
                     break;
                 }

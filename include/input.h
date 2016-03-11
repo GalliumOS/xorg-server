@@ -448,12 +448,11 @@ extern _X_EXPORT void QueuePointerEvents(DeviceIntPtr pDev,
 extern _X_EXPORT int GetKeyboardEvents(InternalEvent *events,
                                        DeviceIntPtr pDev,
                                        int type,
-                                       int key_code, const ValuatorMask *mask);
+                                       int key_code);
 
 extern _X_EXPORT void QueueKeyboardEvents(DeviceIntPtr pDev,
                                           int type,
-                                          int key_code,
-                                          const ValuatorMask *mask);
+                                          int key_code);
 
 extern int GetTouchEvents(InternalEvent *events,
                           DeviceIntPtr pDev,
@@ -505,7 +504,7 @@ extern int AttachDevice(ClientPtr client,
                         DeviceIntPtr slave, DeviceIntPtr master);
 
 extern _X_EXPORT DeviceIntPtr GetPairedDevice(DeviceIntPtr kbd);
-extern DeviceIntPtr GetMaster(DeviceIntPtr dev, int type);
+extern _X_EXPORT DeviceIntPtr GetMaster(DeviceIntPtr dev, int type);
 
 extern _X_EXPORT int AllocDevicePair(ClientPtr client,
                                      const char *name,
@@ -673,6 +672,21 @@ extern _X_EXPORT Bool valuator_mask_fetch(const ValuatorMask *mask,
                                           int valnum, int *val);
 extern _X_EXPORT Bool valuator_mask_fetch_double(const ValuatorMask *mask,
                                                  int valnum, double *val);
+
+extern _X_EXPORT Bool valuator_mask_has_unaccelerated(const ValuatorMask *mask);
+extern _X_EXPORT void valuator_mask_set_unaccelerated(ValuatorMask *mask,
+                                                      int valuator,
+                                                      double accel,
+                                                      double unaccel);
+extern _X_EXPORT double valuator_mask_get_accelerated(const ValuatorMask *mask,
+                                                      int valuator);
+extern _X_EXPORT double valuator_mask_get_unaccelerated(const ValuatorMask *mask,
+                                                        int valuator);
+extern _X_EXPORT Bool valuator_mask_fetch_unaccelerated(const ValuatorMask *mask,
+                                                        int valuator,
+                                                        double *accel,
+                                                        double *unaccel);
+extern _X_HIDDEN void valuator_mask_drop_unaccelerated(ValuatorMask *mask);
 
 /* InputOption handling interface */
 extern _X_EXPORT InputOption *input_option_new(InputOption *list,

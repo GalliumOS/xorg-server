@@ -1,13 +1,16 @@
-diff --git a/hw/xfree86/modes/xf86Crtc.h b/hw/xfree86/modes/xf86Crtc.h
-index 802303f..6e80210 100644
---- a/hw/xfree86/modes/xf86Crtc.h
-+++ b/hw/xfree86/modes/xf86Crtc.h
-@@ -730,6 +730,8 @@ static _X_INLINE xf86OutputPtr
+Description: Silence a valgrind error
+Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
+
+Index: xorg-server-1.17.2/hw/xfree86/modes/xf86Crtc.h
+===================================================================
+--- xorg-server-1.17.2.orig/hw/xfree86/modes/xf86Crtc.h
++++ xorg-server-1.17.2/hw/xfree86/modes/xf86Crtc.h
+@@ -731,6 +731,8 @@ static _X_INLINE xf86OutputPtr
  xf86CompatOutput(ScrnInfoPtr pScrn)
  {
      xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(pScrn);
 +    if (config->compat_output < 0)
 +        return NULL;
  
-     return config->output[config->compat_output];
- }
+     if (config->compat_output < 0)
+         return NULL;

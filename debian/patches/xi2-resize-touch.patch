@@ -1,8 +1,9 @@
-diff --git a/dix/touch.c b/dix/touch.c
-index a7ea213..1478e38 100644
+Description: Resize touch event history if the array is filled up.
+Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
+
 --- a/dix/touch.c
 +++ b/dix/touch.c
-@@ -460,12 +460,26 @@ TouchEventHistoryPush(TouchPointInfoPtr ti, const DeviceEvent *ev)
+@@ -460,11 +460,25 @@ TouchEventHistoryPush(TouchPointInfoPtr
      if (ev->flags & (TOUCH_CLIENT_ID | TOUCH_REPLAYING))
          return;
  
@@ -25,10 +26,8 @@ index a7ea213..1478e38 100644
 -    /* FIXME: proper overflow fixes */
      if (ti->history_elements > ti->history_size - 1) {
          ti->history_elements = ti->history_size - 1;
--        DebugF("source device %d: history size %d overflowing for touch %u\n",
--               ti->sourceid, ti->history_size, ti->client_id);
-+        ErrorF("source device %d: history size %d overflowing for touch %u\n",
-+              ti->sourceid, ti->history_size, ti->client_id);
+-        DebugF("source device %d: history size %zu overflowing for touch %u\n",
++        ErrorF("source device %d: history size %zu overflowing for touch %u\n",
+                ti->sourceid, ti->history_size, ti->client_id);
      }
  }
- 

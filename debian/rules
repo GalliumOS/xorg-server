@@ -45,24 +45,30 @@ endif
 
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
-	selinux = --enable-xselinux
-	wayland = --enable-xwayland
+	selinux        = --enable-xselinux
+	wayland        = --enable-xwayland
+	logind         = --enable-systemd-logind
+	systemd-daemon = --with-systemd-daemon
 	build_xmir = --enable-xmir
 else
-	selinux = --disable-xselinux
-	wayland = --disable-xwayland
+	selinux        = --disable-xselinux
+	wayland        = --disable-xwayland
+	logind         = --disable-systemd-logind
+	systemd-daemon = --without-systemd-daemon
 endif
 
 # Mir isn't built on PPC
-ifneq (,$(filter $(DEB_HOST_ARCH), arm64 powerpc ppc64el))
+ifneq (,$(filter $(DEB_HOST_ARCH), arm64 powerpc ppc64el s390x))
 	build_xmir = --disable-xmir
 endif
 
 ifeq ($(DEB_HOST_ARCH_OS), hurd)
 	dri = --disable-dri --disable-dri2
+	xshmfence = --disable-xshmfence
 else
 	dri = --enable-dri --enable-dri2
 	dri += --enable-glamor
+	xshmfence = --enable-xshmfence
 endif
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
@@ -71,7 +77,7 @@ else
 	dri += --disable-dri3
 endif
 
-config_backend = --disable-config-dbus --disable-config-hal
+config_backend = --disable-config-hal
 ifeq ($(DEB_HOST_ARCH_OS), linux)
 	config_backend += --enable-config-udev
 else ifeq ($(DEB_HOST_ARCH_OS), kfreebsd)
@@ -80,6 +86,21 @@ else ifeq ($(DEB_HOST_ARCH_OS), kfreebsd)
 	cppflags = $(shell pkg-config --cflags libbsd-overlay)
 else # hurd
 	config_backend += --disable-config-udev
+endif
+
+# linux: libdrm needed for kms (hw/xfree86/os-support/linux/lnx_platform.c)
+#        even in udeb
+# kfreebsd: libdrm for dri in main build
+# hurd: no libdrm
+ifeq ($(DEB_HOST_ARCH_OS), linux)
+	libdrm_main = --enable-libdrm
+	libdrm_udeb = --enable-libdrm
+else ifeq ($(DEB_HOST_ARCH_OS), kfreebsd)
+	libdrm_main = --enable-libdrm
+	libdrm_udeb = --disable-libdrm
+else # hurd
+	libdrm_main = --disable-libdrm
+	libdrm_udeb = --disable-libdrm
 endif
 
 vars = $(shell DEB_BUILD_MAINT_OPTIONS="hardening=+pie" DEB_LDFLAGS_MAINT_APPEND="-Wl,-Bsymbolic" DEB_CPPFLAGS_MAINT_APPEND="-DPRE_RELEASE=0 $(cppflags)" dpkg-buildflags --export=configure) LIBS="$(libs)"
@@ -101,9 +122,6 @@ SOURCE_VERSION := $(shell dpkg-parsechangelog | awk -F': ' '/^Version: / {print 
 # Add a workaround for LP: #1266492
 confflags += lt_cv_prog_compiler_static_works=no
 
-# Add a workaround for LP: #1266492
-confflags += lt_cv_prog_compiler_static_works=no
-
 # disable-static is so we don't get libfoo.a for modules.  now if only we could
 # kill the .las.
 confflags += \
@@ -120,7 +138,6 @@ confflags += \
 	     --with-xkb-path=/usr/share/X11/xkb \
 	     --with-xkb-output=/var/lib/xkb \
 	     --with-shared-memory-dir=/dev/shm \
-	     --disable-install-libxf86config \
 	     --enable-mitshm \
 	     --enable-xres \
 	     --disable-xcsecurity \
@@ -128,6 +145,7 @@ confflags += \
 	     --enable-dbe \
 	     --disable-xf86bigfont \
 	     --enable-dpms \
+	     $(xshmfence) \
 	     $(config_backend) \
 	     --enable-xorg \
 	     --disable-linux-acpi \
@@ -141,8 +159,6 @@ confflags += \
 confflags_main = \
 	--with-default-font-path="/usr/share/fonts/X11/misc,/usr/share/fonts/X11/cyrillic,/usr/share/fonts/X11/100dpi/:unscaled,/usr/share/fonts/X11/75dpi/:unscaled,/usr/share/fonts/X11/Type1,/usr/share/fonts/X11/100dpi,/usr/share/fonts/X11/75dpi,built-ins" \
 	--enable-aiglx \
-	--enable-glx-tls \
-	--enable-registry \
 	--enable-composite \
 	--enable-record \
 	--enable-xv \
@@ -153,6 +169,7 @@ confflags_main = \
 	--enable-xdm-auth-1 \
 	--enable-glx \
 	$(dri) \
+	$(libdrm_main) \
 	--enable-present \
 	--enable-xinerama \
 	--enable-xf86vidmode \
@@ -160,12 +177,14 @@ confflags_main = \
 	$(selinux) \
 	--enable-xfree86-utils \
 	$(wayland) \
+	$(logind) \
+	$(systemd-daemon) \
+	--enable-suid-wrapper \
 	--enable-dmx \
 	--enable-xvfb \
 	--enable-xnest \
 	--enable-kdrive \
 	--enable-xephyr \
-	$(build_xfbdev) \
 	$(build_xmir) \
 	--with-sha1=libgcrypt \
 	--enable-xcsecurity \
@@ -175,8 +194,6 @@ confflags_main = \
 confflags_udeb = \
 	--with-default-font-path="built-ins" \
 	--disable-aiglx \
-	--disable-glx-tls \
-	--disable-registry \
 	--disable-composite \
 	--disable-record \
 	--disable-xv \
@@ -188,18 +205,21 @@ confflags_udeb = \
 	--disable-glx \
 	--disable-dri \
 	--disable-dri2 \
+	$(libdrm_udeb) \
 	--disable-xinerama \
 	--disable-xf86vidmode \
 	--disable-xace \
 	--disable-xselinux \
 	--disable-xfree86-utils \
 	--disable-xwayland \
+	--disable-systemd-logind \
+	--without-systemd-daemon \
+	--disable-suid-wrapper \
 	--disable-dmx \
 	--disable-xvfb \
 	--disable-xnest \
 	--disable-kdrive \
 	--disable-xephyr \
-	--disable-xfbdev \
 	--disable-xmir \
 	--with-sha1=libnettle \
 	$(config_backend_udeb) \
@@ -228,10 +248,12 @@ $(STAMP_DIR)/configure-%: $(STAMP_DIR)/autoreconf
 	cd build-$* && \
 	../configure \
 	  --prefix=/usr \
+	  --libdir=\$${exec_prefix}/lib \
 	  --mandir=\$${prefix}/share/man \
 	  --infodir=\$${prefix}/share/info \
 	  --sysconfdir=/etc \
 	  --localstatedir=/var \
+	  --libexecdir=\$${libdir}/xorg \
 	  $(confflags) \
 	  $(confflags_$*) \
 	  $(vars)
@@ -326,6 +348,8 @@ binary-deb:
 	dh_lintian
 	dh_compress
 	dh_fixperms
+	-chown root:root $(CURDIR)/debian/xserver-xorg-legacy/usr/lib/xorg/Xorg.wrap
+	-chmod ug+s $(CURDIR)/debian/xserver-xorg-legacy/usr/lib/xorg/Xorg.wrap
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol
@@ -401,22 +425,19 @@ endif
 	dh_installdebconf -s
 	dh_installman -s
 	dh_link -s
-	dh_strip -pxserver-xorg-xmir -pxserver-xorg-core --dbg-package=xserver-xorg-core-dbg
+	dh_strip -pxserver-xorg-core --dbg-package=xserver-xorg-core-dbg
 	dh_strip -s -Nxserver-xorg-core -Nxserver-xorg-core-dbg
 	$(MAKE) -f debian/rules DH_OPTIONS=-s binary-deb
 
 
 # Build architecture-independent files here
-binary-indep: build-indep install check
+binary-indep: build-indep install
 	$(MAKE) -f debian/rules DH_OPTIONS=-i binary-initial
 	dh_install -i
 	dh_installdocs -i
 	dh_installchangelogs -i ChangeLog
 
 	$(MAKE) -f debian/rules DH_OPTIONS=-i binary-deb
-
-check:
-	dh_testdir
 
 binary: binary-indep binary-arch
 .PHONY: build clean binary-indep binary-arch binary install

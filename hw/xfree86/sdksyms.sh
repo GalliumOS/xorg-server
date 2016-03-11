@@ -54,7 +54,6 @@ cat > sdksyms.c << EOF
 #include "xvmcext.h"
 #endif
 #include "geext.h"
-#include "geint.h"
 #ifdef MITSHM
 #include "shmint.h"
 #endif
@@ -137,9 +136,6 @@ cat > sdksyms.c << EOF
 # include "xf86xvmc.h"
 # include "xf86xvpriv.h"
 #endif
-#if XF86VIDMODE
-# include "vidmodeproc.h"
-#endif
 #include "xorgVersion.h"
 #if defined(__sparc__) || defined(__sparc)
 # include "xf86sbusBus.h"
@@ -177,12 +173,6 @@ cat > sdksyms.c << EOF
 #endif
 #if defined(__sparc__) || defined(__sparc)
 # include "xf86Sbus.h"
-#endif
-
-
-/* hw/xfree86/dixmods/extmod/Makefile.am -- module */
-#ifdef XFreeXDGA
-#include "dgaproc.h"
 #endif
 
 
@@ -295,8 +285,6 @@ cat > sdksyms.c << EOF
 #include "selection.h"
 #include "servermd.h"
 #include "site.h"
-#include "swaprep.h"
-#include "swapreq.h"
 #include "validate.h"
 #include "window.h"
 #include "windowstr.h"
@@ -350,13 +338,25 @@ BEGIN {
     if (sdk) {
 	n = 3;
 
+        # skip line numbers GCC 5 adds before __attribute__
+        while ($n == "" || $0 ~ /^# [0-9]+ "/) {
+           getline;
+           n = 1;
+        }
+
 	# skip attribute, if any
 	while ($n ~ /^(__attribute__|__global)/ ||
 	    # skip modifiers, if any
 	    $n ~ /^\*?(unsigned|const|volatile|struct|_X_EXPORT)$/ ||
 	    # skip pointer
-	    $n ~ /^[a-zA-Z0-9_]*\*$/)
+	    $n ~ /^[a-zA-Z0-9_]*\*$/) {
 	    n++;
+            # skip line numbers GCC 5 adds after __attribute__
+            while ($n == "" || $0 ~ /^# [0-9]+ "/) {
+               getline;
+               n = 1;
+            }
+        }
 
 	# type specifier may not be set, as in
 	#   extern _X_EXPORT unsigned name(...)

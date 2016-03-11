@@ -374,12 +374,17 @@ present_set_tree_pixmap_visit(WindowPtr window, void *data)
 }
 
 static void
-present_set_tree_pixmap(WindowPtr window, PixmapPtr pixmap)
+present_set_tree_pixmap(WindowPtr window,
+                        PixmapPtr expected,
+                        PixmapPtr pixmap)
 {
     struct pixmap_visit visit;
     ScreenPtr           screen = window->drawable.pScreen;
 
     visit.old = (*screen->GetWindowPixmap)(window);
+    if (expected && visit.old != expected)
+        return;
+
     visit.new = pixmap;
     if (visit.old == visit.new)
         return;
@@ -390,6 +395,7 @@ static void
 present_set_abort_flip(ScreenPtr screen)
 {
     present_screen_priv_ptr screen_priv = present_screen_priv(screen);
+    PixmapPtr pixmap = (*screen->GetScreenPixmap)(screen);
 
     /* Switch back to using the screen pixmap now to avoid
      * 2D applications drawing to the wrong pixmap.
@@ -397,10 +403,11 @@ present_set_abort_flip(ScreenPtr screen)
 
     if (screen_priv->flip_window)
         present_set_tree_pixmap(screen_priv->flip_window,
-                                  (*screen->GetScreenPixmap)(screen));
+                                screen_priv->flip_pixmap,
+                                pixmap);
 
     if (screen->root)
-        present_set_tree_pixmap(screen->root, (*screen->GetScreenPixmap)(screen));
+        present_set_tree_pixmap(screen->root, NULL, pixmap);
 
     screen_priv->flip_pending->abort_flip = TRUE;
 }
@@ -409,20 +416,22 @@ static void
 present_unflip(ScreenPtr screen)
 {
     present_screen_priv_ptr screen_priv = present_screen_priv(screen);
+    PixmapPtr pixmap = (*screen->GetScreenPixmap)(screen);
 
     assert (!screen_priv->unflip_event_id);
     assert (!screen_priv->flip_pending);
 
-    if (screen_priv->flip_window)
+    if (screen_priv->flip_pixmap && screen_priv->flip_window)
         present_set_tree_pixmap(screen_priv->flip_window,
-                                  (*screen->GetScreenPixmap)(screen));
+                                screen_priv->flip_pixmap,
+                                pixmap);
 
-    present_set_tree_pixmap(screen->root, (*screen->GetScreenPixmap)(screen));
+    present_set_tree_pixmap(screen->root, NULL, pixmap);
 
     /* Update the screen pixmap with the current flip pixmap contents
      */
     if (screen_priv->flip_pixmap && screen_priv->flip_window) {
-        present_copy_region(&screen_priv->flip_window->drawable,
+        present_copy_region(&pixmap->drawable,
                             screen_priv->flip_pixmap,
                             NULL, 0, 0);
     }
@@ -453,6 +462,7 @@ present_flip_notify(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
     screen_priv->flip_window = vblank->window;
     screen_priv->flip_serial = vblank->serial;
     screen_priv->flip_pixmap = vblank->pixmap;
+    screen_priv->flip_sync = vblank->sync_flip;
     screen_priv->flip_idle_fence = vblank->idle_fence;
 
     vblank->pixmap = NULL;
@@ -541,15 +551,20 @@ present_check_flip_window (WindowPtr window)
          * Check current flip
          */
         if (window == screen_priv->flip_window) {
-            if (!present_check_flip(screen_priv->flip_crtc, window, screen_priv->flip_pixmap, FALSE, NULL, 0, 0))
+            if (!present_check_flip(screen_priv->flip_crtc, window, screen_priv->flip_pixmap, screen_priv->flip_sync, NULL, 0, 0))
                 present_unflip(screen);
         }
     }
 
     /* Now check any queued vblanks */
     xorg_list_for_each_entry(vblank, &window_priv->vblank, window_list) {
-        if (vblank->queued && vblank->flip && !present_check_flip(vblank->crtc, window, vblank->pixmap, FALSE, NULL, 0, 0))
+        if (vblank->queued && vblank->flip && !present_check_flip(vblank->crtc, window, vblank->pixmap, vblank->sync_flip, NULL, 0, 0)) {
             vblank->flip = FALSE;
+            if (vblank->sync_flip) {
+                vblank->requeue = TRUE;
+                vblank->target_msc++;
+            }
+        }
     }
 }
 
@@ -582,6 +597,15 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
     ScreenPtr                   screen = window->drawable.pScreen;
     present_screen_priv_ptr     screen_priv = present_screen_priv(screen);
     uint8_t                     mode;
+
+    if (vblank->requeue) {
+        vblank->requeue = FALSE;
+        if (Success == present_queue_vblank(screen,
+                                            vblank->crtc,
+                                            vblank->event_id,
+                                            vblank->target_msc))
+            return;
+    }
 
     if (vblank->wait_fence) {
         if (!present_fence_check_triggered(vblank->wait_fence)) {
@@ -629,9 +653,10 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
                  */
                 if (screen_priv->flip_window && screen_priv->flip_window != window)
                     present_set_tree_pixmap(screen_priv->flip_window,
-                                              (*screen->GetScreenPixmap)(screen));
-                present_set_tree_pixmap(vblank->window, vblank->pixmap);
-                present_set_tree_pixmap(screen->root, vblank->pixmap);
+                                            screen_priv->flip_pixmap,
+                                            (*screen->GetScreenPixmap)(screen));
+                present_set_tree_pixmap(vblank->window, NULL, vblank->pixmap);
+                present_set_tree_pixmap(screen->root, NULL, vblank->pixmap);
 
                 /* Report update region as damaged
                  */
@@ -692,6 +717,28 @@ present_execute(present_vblank_ptr vblank, uint64_t ust, uint64_t crtc_msc)
     present_vblank_destroy(vblank);
 }
 
+/*
+ * Returns:
+ * TRUE if the first MSC value is after the second one
+ * FALSE if the first MSC value is equal to or before the second one
+ */
+static Bool
+msc_is_after(uint64_t test, uint64_t reference)
+{
+    return (int64_t)(test - reference) > 0;
+}
+
+/*
+ * Returns:
+ * TRUE if the first MSC value is equal to or after the second one
+ * FALSE if the first MSC value is before the second one
+ */
+static Bool
+msc_is_equal_or_after(uint64_t test, uint64_t reference)
+{
+    return (int64_t)(test - reference) >= 0;
+}
+
 int
 present_pixmap(WindowPtr window,
                PixmapPtr pixmap,
@@ -710,9 +757,9 @@ present_pixmap(WindowPtr window,
                present_notify_ptr notifies,
                int num_notifies)
 {
-    uint64_t                    ust;
+    uint64_t                    ust = 0;
     uint64_t                    target_msc;
-    uint64_t                    crtc_msc;
+    uint64_t                    crtc_msc = 0;
     int                         ret;
     present_vblank_ptr          vblank, tmp;
     ScreenPtr                   screen = window->drawable.pScreen;
@@ -734,24 +781,26 @@ present_pixmap(WindowPtr window,
             target_crtc = present_get_crtc(window);
     }
 
-    present_get_ust_msc(screen, target_crtc, &ust, &crtc_msc);
+    ret = present_get_ust_msc(screen, target_crtc, &ust, &crtc_msc);
 
     target_msc = present_window_to_crtc_msc(window, target_crtc, window_msc, crtc_msc);
 
-    /* Stash the current MSC away in case we need it later
-     */
-    window_priv->msc = crtc_msc;
+    if (ret == Success) {
+        /* Stash the current MSC away in case we need it later
+         */
+        window_priv->msc = crtc_msc;
+    }
 
     /* Adjust target_msc to match modulus
      */
-    if (crtc_msc >= target_msc) {
+    if (msc_is_equal_or_after(crtc_msc, target_msc)) {
         if (divisor != 0) {
             target_msc = crtc_msc - (crtc_msc % divisor) + remainder;
             if (options & PresentOptionAsync) {
-                if (target_msc < crtc_msc)
+                if (msc_is_after(crtc_msc, target_msc))
                     target_msc += divisor;
             } else {
-                if (target_msc <= crtc_msc)
+                if (msc_is_equal_or_after(crtc_msc, target_msc))
                     target_msc += divisor;
             }
         } else {
@@ -834,19 +883,20 @@ present_pixmap(WindowPtr window,
     vblank->notifies = notifies;
     vblank->num_notifies = num_notifies;
 
-    if (!(options & PresentOptionAsync))
-        vblank->sync_flip = TRUE;
-
-    if (!(options & PresentOptionCopy) &&
-        !((options & PresentOptionAsync) &&
-          (!screen_priv->info ||
-           !(screen_priv->info->capabilities & PresentCapabilityAsync))) &&
-        pixmap != NULL &&
-        present_check_flip (target_crtc, window, pixmap, vblank->sync_flip, valid, x_off, y_off))
-    {
-        vblank->flip = TRUE;
-        if (vblank->sync_flip)
+    if (pixmap != NULL &&
+        !(options & PresentOptionCopy) &&
+        screen_priv->info) {
+        if (msc_is_after(target_msc, crtc_msc) &&
+            present_check_flip (target_crtc, window, pixmap, TRUE, valid, x_off, y_off))
+        {
+            vblank->flip = TRUE;
+            vblank->sync_flip = TRUE;
             target_msc--;
+        } else if ((screen_priv->info->capabilities & PresentCapabilityAsync) &&
+            present_check_flip (target_crtc, window, pixmap, FALSE, valid, x_off, y_off))
+        {
+            vblank->flip = TRUE;
+        }
     }
 
     if (wait_fence) {
@@ -869,7 +919,7 @@ present_pixmap(WindowPtr window,
 
     xorg_list_add(&vblank->event_queue, &present_exec_queue);
     vblank->queued = TRUE;
-    if ((pixmap && target_msc >= crtc_msc) || (!pixmap && target_msc > crtc_msc)) {
+    if (msc_is_after(target_msc, crtc_msc)) {
         ret = present_queue_vblank(screen, target_crtc, vblank->event_id, target_msc);
         if (ret == Success)
             return Success;
@@ -931,7 +981,7 @@ present_notify_msc(WindowPtr window,
                           0, 0,
                           NULL,
                           NULL, NULL,
-                          PresentOptionAsync,
+                          divisor == 0 ? PresentOptionAsync : 0,
                           target_msc, divisor, remainder, NULL, 0);
 }
 

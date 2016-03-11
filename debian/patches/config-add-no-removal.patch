@@ -1,6 +1,12 @@
---- a/config/udev.c
-+++ b/config/udev.c
-@@ -338,10 +338,9 @@
+Description: Do not call device_remove when a device is hotplugged.
+Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
+Bug-Ubuntu: https://launchpad.net/bugs/1157614
+
+Index: xorg-server-1.17.2/config/udev.c
+===================================================================
+--- xorg-server-1.17.2.orig/config/udev.c
++++ xorg-server-1.17.2/config/udev.c
+@@ -347,10 +347,9 @@ wakeup_handler(void *data, int err, void
              return;
          action = udev_device_get_action(udev_device);
          if (action) {
@@ -13,9 +19,11 @@
                  /* ignore change for the drm devices */
                  if (strcmp(udev_device_get_subsystem(udev_device), "drm")) {
                      device_removed(udev_device);
---- a/hw/xfree86/os-support/linux/lnx_platform.c
-+++ b/hw/xfree86/os-support/linux/lnx_platform.c
-@@ -177,6 +177,7 @@
+Index: xorg-server-1.17.2/hw/xfree86/os-support/linux/lnx_platform.c
+===================================================================
+--- xorg-server-1.17.2.orig/hw/xfree86/os-support/linux/lnx_platform.c
++++ xorg-server-1.17.2/hw/xfree86/os-support/linux/lnx_platform.c
+@@ -177,6 +177,7 @@ xf86PlatformDeviceProbe(struct OdevAttri
      return;
  
  out_free:

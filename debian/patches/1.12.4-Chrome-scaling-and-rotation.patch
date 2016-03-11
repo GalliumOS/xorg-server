@@ -24,7 +24,7 @@
  #include <X11/extensions/XI.h>
  #include <X11/extensions/XI2.h>
  #include <X11/extensions/XIproto.h>
-@@ -1329,6 +1332,158 @@
+@@ -1305,6 +1308,158 @@
      queueEventList(device, InputEventList, nevents);
  }
  
@@ -183,9 +183,9 @@
  /**
   * Helper function for GetPointerEvents, which only generates motion and
   * raw motion events for the slave device: does not update the master device.
-@@ -1448,6 +1603,8 @@
+@@ -1426,6 +1581,8 @@
          if ((flags & POINTER_NORAW) == 0 && raw)
-             set_raw_valuators(raw, &mask, raw->valuators.data);
+             set_raw_valuators(raw, &mask, FALSE, raw->valuators.data);
  
 +        scaleAndRotateMotionPerRRCrtc(pDev, &mask);
 +

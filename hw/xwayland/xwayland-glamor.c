@@ -233,9 +233,11 @@ xwl_glamor_create_screen_resources(ScreenPtr screen)
     if (!ret)
         return ret;
 
-    if (xwl_screen->rootless)
+    if (xwl_screen->rootless) {
         screen->devPrivate =
             fbCreatePixmap(screen, 0, 0, screen->rootDepth, 0);
+        SetRootClip(screen, FALSE);
+    }
     else {
         screen->devPrivate =
             xwl_glamor_create_pixmap(screen, screen->width, screen->height,
@@ -310,7 +312,7 @@ xwl_drm_init_egl(struct xwl_screen *xwl_screen)
     }
 
     if (!epoxy_has_gl_extension("GL_OES_EGL_image")) {
-        ErrorF("GL_OES_EGL_image no available");
+        ErrorF("GL_OES_EGL_image not available\n");
         return;
     }
 
@@ -329,7 +331,7 @@ xwl_drm_handle_device(void *data, struct wl_drm *drm, const char *device)
 
    xwl_screen->drm_fd = open(xwl_screen->device_name, O_RDWR | O_CLOEXEC);
    if (xwl_screen->drm_fd == -1) {
-       ErrorF("wayland-egl: could not open %s (%s)",
+       ErrorF("wayland-egl: could not open %s (%s)\n",
 	      xwl_screen->device_name, strerror(errno));
        return;
    }
@@ -415,7 +417,7 @@ glamor_egl_dri3_fd_name_from_tex(ScreenPtr screen,
 }
 
 unsigned int
-glamor_egl_create_argb8888_based_texture(ScreenPtr screen, int w, int h)
+glamor_egl_create_argb8888_based_texture(ScreenPtr screen, int w, int h, Bool linear)
 {
     return 0;
 }
@@ -549,11 +551,7 @@ xwl_glamor_init(struct xwl_screen *xwl_screen)
         return FALSE;
     }
 
-    if (!glamor_init(xwl_screen->screen,
-                     GLAMOR_INVERTED_Y_AXIS |
-                     GLAMOR_USE_EGL_SCREEN |
-                     GLAMOR_USE_SCREEN |
-                     GLAMOR_USE_PICTURE_SCREEN)) {
+    if (!glamor_init(xwl_screen->screen, GLAMOR_USE_EGL_SCREEN)) {
         ErrorF("Failed to initialize glamor\n");
         return FALSE;
     }

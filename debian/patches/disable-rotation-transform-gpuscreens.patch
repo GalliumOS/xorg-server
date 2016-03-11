@@ -6,7 +6,7 @@ Bug-Ubuntu: https://launchpad.net/bugs/1489696
 
 --- a/hw/xfree86/modes/xf86RandR12.c
 +++ b/hw/xfree86/modes/xf86RandR12.c
-@@ -927,6 +927,9 @@ xf86RandR12SetRotations(ScreenPtr pScree
+@@ -922,6 +922,9 @@ xf86RandR12SetRotations(ScreenPtr pScree
      if (xf86RandR12Key == NULL)
          return;
  
@@ -16,7 +16,7 @@ Bug-Ubuntu: https://launchpad.net/bugs/1489696
      randrp = XF86RANDRINFO(pScreen);
  #if RANDR_12_INTERFACE
      for (c = 0; c < config->num_crtc; c++) {
-@@ -947,6 +950,9 @@ xf86RandR12SetTransformSupport(ScreenPtr
+@@ -942,6 +945,9 @@ xf86RandR12SetTransformSupport(ScreenPtr
      xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(pScrn);
  #endif
  

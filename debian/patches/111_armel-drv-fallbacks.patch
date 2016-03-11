@@ -1,5 +1,10 @@
---- a/hw/xfree86/common/xf86AutoConfig.c
-+++ b/hw/xfree86/common/xf86AutoConfig.c
+Description: Add support for armel driver fallbacks.
+Bug-Ubuntu: https://launchpad.net/bugs/550701
+
+Index: xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
+===================================================================
+--- xorg-server-1.17.2.orig/hw/xfree86/common/xf86AutoConfig.c
++++ xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
 @@ -45,6 +45,12 @@
  #include "xf86sbusBus.h"
  #endif
@@ -13,7 +18,7 @@
  #ifdef sun
  #include <sys/visual_io.h>
  #include <ctype.h>
-@@ -200,6 +206,27 @@
+@@ -200,6 +206,27 @@ xf86AutoConfig(void)
      return ret == CONFIG_OK;
  }
  
@@ -41,7 +46,7 @@
  static void
  listPossibleVideoDrivers(char *matches[], int nmatches)
  {
-@@ -279,6 +306,21 @@
+@@ -278,6 +305,21 @@ listPossibleVideoDrivers(char *matches[]
          i += xf86PciMatchDriver(&matches[i], nmatches - i);
  #endif
  

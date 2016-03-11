@@ -17,7 +17,7 @@ DO NOT UPSTREAM.
 
 --- a/hw/xfree86/common/xf86Init.c
 +++ b/hw/xfree86/common/xf86Init.c
-@@ -363,6 +363,16 @@
+@@ -340,6 +340,16 @@ xf86CreateRootWindow(WindowPtr pWin)
      return ret;
  }
  
@@ -34,7 +34,7 @@ DO NOT UPSTREAM.
  static void
  InstallSignalHandlers(void)
  {
-@@ -973,6 +983,8 @@
+@@ -950,6 +960,8 @@ InitOutput(ScreenInfo * pScreenInfo, int
      for (i = 0; i < xf86NumGPUScreens; i++)
          AttachUnboundGPU(xf86Screens[0]->pScreen, xf86GPUScreens[i]->pScreen);
  
@@ -45,7 +45,7 @@ DO NOT UPSTREAM.
          OsReleaseSIGIO();
 --- a/hw/xfree86/common/xf86platformBus.c
 +++ b/hw/xfree86/common/xf86platformBus.c
-@@ -497,9 +497,12 @@
+@@ -466,9 +466,12 @@ xf86platformProbeDev(DriverPtr drvp)
          }
      }
  
@@ -58,7 +58,7 @@ DO NOT UPSTREAM.
  int
  xf86platformAddDevice(int index)
  {
-@@ -568,6 +571,7 @@
+@@ -540,6 +543,7 @@ xf86platformAddDevice(int index)
     }
     /* attach unbound to 0 protocol screen */
     AttachUnboundGPU(xf86Screens[0]->pScreen, xf86GPUScreens[i]->pScreen);
@@ -68,7 +68,7 @@ DO NOT UPSTREAM.
     RRTellChanged(xf86Screens[0]->pScreen);
 --- a/hw/xfree86/modes/xf86Crtc.c
 +++ b/hw/xfree86/modes/xf86Crtc.c
-@@ -3387,3 +3387,35 @@
+@@ -3562,3 +3562,35 @@ xf86DetachAllCrtc(ScrnInfoPtr scrn)
              crtc->x = crtc->y = 0;
          }
  }

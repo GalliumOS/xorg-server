@@ -37,6 +37,7 @@
 #endif
 
 #include "glamor_priv.h"
+#include "glamor_transfer.h"
 
 #include <X11/extensions/Xv.h>
 #include "../hw/xfree86/common/fourcc.h"
@@ -241,8 +242,8 @@ glamor_xv_render(glamor_port_private *port_priv)
 {
     ScreenPtr screen = port_priv->pPixmap->drawable.pScreen;
     glamor_screen_private *glamor_priv = glamor_get_screen_private(screen);
-    glamor_pixmap_private *pixmap_priv =
-        glamor_get_pixmap_private(port_priv->pPixmap);
+    PixmapPtr pixmap = port_priv->pPixmap;
+    glamor_pixmap_private *pixmap_priv = glamor_get_pixmap_private(pixmap);
     glamor_pixmap_private *src_pixmap_priv[3];
     float vertices[32], texcoords[8];
     BoxPtr box = REGION_RECTS(&port_priv->clip);
@@ -282,10 +283,11 @@ glamor_xv_render(glamor_port_private *port_priv)
     off[2] = Loff * yco + Coff * (uco[2] + vco[2]) + bright;
     gamma = 1.0;
 
-    pixmap_priv_get_dest_scale(pixmap_priv, &dst_xscale, &dst_yscale);
+    pixmap_priv_get_dest_scale(pixmap, pixmap_priv, &dst_xscale, &dst_yscale);
     glamor_get_drawable_deltas(port_priv->pDraw, port_priv->pPixmap, &dst_x_off,
                                &dst_y_off);
-    glamor_set_destination_pixmap_priv_nc(pixmap_priv);
+    glamor_set_destination_pixmap_priv_nc(glamor_priv, pixmap, pixmap_priv);
+    glamor_set_alu(screen, GXcopy);
 
     for (i = 0; i < 3; i++) {
         if (port_priv->src_pix[i]) {
@@ -306,21 +308,21 @@ glamor_xv_render(glamor_port_private *port_priv)
     glUniform4f(uloc, vco[0], vco[1], vco[2], 0);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[0]->base.fbo->tex);
+    glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[0]->fbo->tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[1]->base.fbo->tex);
+    glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[1]->fbo->tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[2]->base.fbo->tex);
+    glBindTexture(GL_TEXTURE_2D, src_pixmap_priv[2]->fbo->tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -409,6 +411,7 @@ glamor_xv_put_image(glamor_port_private *port_priv,
     int srcPitch, srcPitch2;
     int top, nlines;
     int s2offset, s3offset, tmp;
+    BoxRec full_box, half_box;
 
     s2offset = s3offset = srcPitch2 = 0;
 
@@ -451,20 +454,28 @@ glamor_xv_put_image(glamor_port_private *port_priv,
             s2offset = s3offset;
             s3offset = tmp;
         }
-        glamor_upload_sub_pixmap_to_texture(port_priv->src_pix[0],
-                                            0, 0, width, nlines,
-                                            srcPitch,
-                                            buf + (top * srcPitch), 0);
 
-        glamor_upload_sub_pixmap_to_texture(port_priv->src_pix[1],
-                                            0, 0, width >> 1, (nlines + 1) >> 1,
-                                            srcPitch2,
-                                            buf + s2offset, 0);
+        full_box.x1 = 0;
+        full_box.y1 = 0;
+        full_box.x2 = width;
+        full_box.y2 = nlines;
 
-        glamor_upload_sub_pixmap_to_texture(port_priv->src_pix[2],
-                                            0, 0, width >> 1, (nlines + 1) >> 1,
-                                            srcPitch2,
-                                            buf + s3offset, 0);
+        half_box.x1 = 0;
+        half_box.y1 = 0;
+        half_box.x2 = width >> 1;
+        half_box.y2 = (nlines + 1) >> 1;
+
+        glamor_upload_boxes(port_priv->src_pix[0], &full_box, 1,
+                            0, 0, 0, 0,
+                            buf + (top * srcPitch), srcPitch);
+
+        glamor_upload_boxes(port_priv->src_pix[1], &half_box, 1,
+                            0, 0, 0, 0,
+                            buf + s2offset, srcPitch2);
+
+        glamor_upload_boxes(port_priv->src_pix[2], &half_box, 1,
+                            0, 0, 0, 0,
+                            buf + s3offset, srcPitch2);
         break;
     default:
         return BadMatch;

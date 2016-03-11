@@ -1,18 +1,18 @@
-diff --git a/hw/xfree86/common/xf86xv.c b/hw/xfree86/common/xf86xv.c
-index 92d0f6d..a33366a 100644
+Description: Do not bother registering xv/xvmc on gpu screens.
+Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
+Bug-Ubuntu: https://launchpad.net/bugs/1079096
+
 --- a/hw/xfree86/common/xf86xv.c
 +++ b/hw/xfree86/common/xf86xv.c
-@@ -234,7 +234,7 @@ xf86XVScreenInit(ScreenPtr pScreen, XF86VideoAdaptorPtr * adaptors, int num)
+@@ -230,7 +230,7 @@ xf86XVScreenInit(ScreenPtr pScreen, XF86
+     ScrnInfoPtr pScrn;
      XF86XVScreenPtr ScreenPriv;
-     XvScreenPtr pxvs;
  
 -    if (num <= 0 || noXvExtension)
 +    if (num <= 0 || noXvExtension || pScreen->isGPU)
          return FALSE;
  
      if (Success != XvScreenInit(pScreen))
-diff --git a/hw/xfree86/common/xf86xvmc.c b/hw/xfree86/common/xf86xvmc.c
-index 78a32bf..a0f6fcd 100644
 --- a/hw/xfree86/common/xf86xvmc.c
 +++ b/hw/xfree86/common/xf86xvmc.c
 @@ -148,11 +148,15 @@ xf86XvMCScreenInit(ScreenPtr pScreen,
@@ -33,4 +33,4 @@ index 78a32bf..a0f6fcd 100644
 +    if (!pxvs)
          return FALSE;
  
-     if (!(pAdapt = malloc(sizeof(XvMCAdaptorRec) * num_adaptors)))
+     if (!(pAdapt = xallocarray(num_adaptors, sizeof(XvMCAdaptorRec))))

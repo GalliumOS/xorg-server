@@ -62,7 +62,6 @@ struct xwl_screen {
     DestroyWindowProcPtr DestroyWindow;
     RealizeWindowProcPtr RealizeWindow;
     UnrealizeWindowProcPtr UnrealizeWindow;
-    XYToWindowProcPtr XYToWindow;
 
     struct xorg_list output_list;
     struct xorg_list seat_list;
@@ -107,24 +106,33 @@ struct xwl_window {
 
 #define MODIFIER_META 0x01
 
+struct xwl_touch {
+    struct xwl_window *window;
+    int32_t id;
+    int x, y;
+    struct xorg_list link_touch;
+};
+
 struct xwl_seat {
     DeviceIntPtr pointer;
     DeviceIntPtr keyboard;
+    DeviceIntPtr touch;
     struct xwl_screen *xwl_screen;
     struct wl_seat *seat;
     struct wl_pointer *wl_pointer;
     struct wl_keyboard *wl_keyboard;
+    struct wl_touch *wl_touch;
     struct wl_array keys;
-    struct wl_surface *cursor;
     struct xwl_window *focus_window;
     uint32_t id;
     uint32_t pointer_enter_serial;
     struct xorg_list link;
     CursorPtr x_cursor;
+    struct wl_surface *cursor;
+    struct wl_callback *cursor_frame_cb;
+    Bool cursor_needs_update;
 
-    wl_fixed_t horizontal_scroll;
-    wl_fixed_t vertical_scroll;
-    uint32_t scroll_time;
+    struct xorg_list touches;
 
     size_t keymap_size;
     char *keymap;
@@ -134,6 +142,7 @@ struct xwl_seat {
 struct xwl_output {
     struct xorg_list link;
     struct wl_output *output;
+    uint32_t server_output_id;
     struct xwl_screen *xwl_screen;
     RROutputPtr randr_output;
     RRCrtcPtr randr_crtc;
@@ -150,6 +159,8 @@ struct xwl_screen *xwl_screen_get(ScreenPtr screen);
 void xwl_seat_set_cursor(struct xwl_seat *xwl_seat);
 
 void xwl_seat_destroy(struct xwl_seat *xwl_seat);
+
+void xwl_seat_clear_touch(struct xwl_seat *xwl_seat, WindowPtr window);
 
 Bool xwl_screen_init_output(struct xwl_screen *xwl_screen);
 

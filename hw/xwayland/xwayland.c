@@ -233,23 +233,36 @@ xwl_realize_window(WindowPtr window)
     }
 
     xwl_window = calloc(sizeof *xwl_window, 1);
+    if (xwl_window == NULL)
+        return FALSE;
+
     xwl_window->xwl_screen = xwl_screen;
     xwl_window->window = window;
     xwl_window->surface = wl_compositor_create_surface(xwl_screen->compositor);
     if (xwl_window->surface == NULL) {
         ErrorF("wl_display_create_surface failed\n");
-        return FALSE;
+        goto err;
     }
 
     if (!xwl_screen->rootless) {
         xwl_window->shell_surface =
             wl_shell_get_shell_surface(xwl_screen->shell, xwl_window->surface);
+        if (xwl_window->shell_surface == NULL) {
+            ErrorF("Failed creating shell surface\n");
+            goto err_surf;
+        }
+
         wl_shell_surface_add_listener(xwl_window->shell_surface,
                                       &shell_surface_listener, xwl_window);
 
         wl_shell_surface_set_toplevel(xwl_window->shell_surface);
 
         region = wl_compositor_create_region(xwl_screen->compositor);
+        if (region == NULL) {
+            ErrorF("Failed creating region\n");
+            goto err_surf;
+        }
+
         wl_region_add(region, 0, 0,
                       window->drawable.width, window->drawable.height);
         wl_surface_set_opaque_region(xwl_window->surface, region);
@@ -262,17 +275,29 @@ xwl_realize_window(WindowPtr window)
 
     wl_surface_set_user_data(xwl_window->surface, xwl_window);
 
-    dixSetPrivate(&window->devPrivates, &xwl_window_private_key, xwl_window);
-
     xwl_window->damage =
         DamageCreate(damage_report, damage_destroy, DamageReportNonEmpty,
                      FALSE, screen, xwl_window);
+    if (xwl_window->damage == NULL) {
+        ErrorF("Failed creating damage\n");
+        goto err_surf;
+    }
+
     DamageRegister(&window->drawable, xwl_window->damage);
     DamageSetReportAfterOp(xwl_window->damage, TRUE);
 
+    dixSetPrivate(&window->devPrivates, &xwl_window_private_key, xwl_window);
     xorg_list_init(&xwl_window->link_damage);
 
     return ret;
+
+err_surf:
+    if (xwl_window->shell_surface)
+        wl_shell_surface_destroy(xwl_window->shell_surface);
+    wl_surface_destroy(xwl_window->surface);
+err:
+    free(xwl_window);
+    return FALSE;
 }
 
 static Bool
@@ -287,10 +312,10 @@ xwl_unrealize_window(WindowPtr window)
     xwl_screen = xwl_screen_get(screen);
 
     xorg_list_for_each_entry(xwl_seat, &xwl_screen->seat_list, link) {
-        if (!xwl_seat->focus_window)
-            continue;
-        if (xwl_seat->focus_window->window == window)
+        if (xwl_seat->focus_window && xwl_seat->focus_window->window == window)
             xwl_seat->focus_window = NULL;
+
+        xwl_seat_clear_touch(xwl_seat, window);
     }
 
     screen->UnrealizeWindow = xwl_screen->UnrealizeWindow;
@@ -396,8 +421,8 @@ registry_global(void *data, struct wl_registry *registry, uint32_t id,
             wl_registry_bind(registry, id, &wl_shell_interface, 1);
     }
     else if (strcmp(interface, "wl_output") == 0 && version >= 2) {
-        xwl_output_create(xwl_screen, id);
-        xwl_screen->expecting_event++;
+        if (xwl_output_create(xwl_screen, id))
+            xwl_screen->expecting_event++;
     }
 #ifdef GLAMOR_HAS_GBM
     else if (xwl_screen->glamor &&
@@ -410,7 +435,16 @@ registry_global(void *data, struct wl_registry *registry, uint32_t id,
 static void
 global_remove(void *data, struct wl_registry *registry, uint32_t name)
 {
-    /* Nothing to do here, wl_compositor and wl_shm should not be removed */
+    struct xwl_screen *xwl_screen = data;
+    struct xwl_output *xwl_output, *tmp_xwl_output;
+
+    xorg_list_for_each_entry_safe(xwl_output, tmp_xwl_output,
+                                  &xwl_screen->output_list, link) {
+        if (xwl_output->server_output_id == name) {
+            xwl_output_destroy(xwl_output);
+            break;
+        }
+    }
 }
 
 static const struct wl_registry_listener registry_listener = {
@@ -483,7 +517,7 @@ listen_on_fds(struct xwl_screen *xwl_screen)
     int i;
 
     for (i = 0; i < xwl_screen->listen_fd_count; i++)
-        ListenOnOpenFD(xwl_screen->listen_fds[i], TRUE);
+        ListenOnOpenFD(xwl_screen->listen_fds[i], FALSE);
 }
 
 static void
@@ -702,4 +736,6 @@ InitOutput(ScreenInfo * screen_info, int argc, char **argv)
     if (AddScreen(xwl_screen_init, argc, argv) == -1) {
         FatalError("Couldn't add screen\n");
     }
+
+    LocalAccessScopeUser();
 }

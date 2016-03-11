@@ -87,6 +87,9 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
     int minor_version = 0;
     uint32_t flags = 0;
     uint32_t render_type = GLX_RGBA_TYPE;
+#ifdef GLX_CONTEXT_RELEASE_BEHAVIOR_ARB
+    uint32_t flush = GLX_CONTEXT_RELEASE_BEHAVIOR_FLUSH_ARB;
+#endif
     __GLXcontext *ctx = NULL;
     __GLXcontext *shareCtx = NULL;
     __GLXscreen *glxScreen;
@@ -194,6 +197,15 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
 
             break;
 
+#ifdef GLX_CONTEXT_RELEASE_BEHAVIOR_ARB
+        case GLX_CONTEXT_RELEASE_BEHAVIOR_ARB:
+            flush = attribs[2 * i + 1];
+            if (flush != GLX_CONTEXT_RELEASE_BEHAVIOR_NONE_ARB
+                && flush != GLX_CONTEXT_RELEASE_BEHAVIOR_FLUSH_ARB)
+                return BadValue;
+            break;
+#endif
+
         default:
             return BadValue;
         }
@@ -242,36 +254,17 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
      *        GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB; has more than one of
      *        these bits set; or if the implementation does not support the
      *        requested profile, then GLXBadProfileARB is generated."
+     *
+     * The GLX_EXT_create_context_es2_profile spec doesn't exactly say what
+     * is supposed to happen if an invalid version is set, but it doesn't
+     * much matter as support for GLES contexts is only defined for direct
+     * contexts (at the moment anyway) so we can leave it up to the driver
+     * to validate.
      */
     switch (profile) {
     case GLX_CONTEXT_CORE_PROFILE_BIT_ARB:
     case GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB:
-        break;
     case GLX_CONTEXT_ES2_PROFILE_BIT_EXT:
-        /* The GLX_EXT_create_context_es2_profile spec says:
-         *
-         *     "... If the version requested is 2.0, and the
-         *     GLX_CONTEXT_ES2_PROFILE_BIT_EXT bit is set in the
-         *     GLX_CONTEXT_PROFILE_MASK_ARB attribute (see below), then the
-         *     context returned will implement OpenGL ES 2.0."
-         *
-         * It also says:
-         *
-         *     "* If attribute GLX_CONTEXT_PROFILE_MASK_ARB has no bits set;
-         *        has any bits set other than
-         *        GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
-         *        GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB, or
-         *        GLX_CONTEXT_ES2_PROFILE_BIT_EXT; has more than one of these
-         *        bits set; or if the implementation does not supported the
-         *        requested profile, then GLXBadProfileARB is generated."
-         *
-         * It does not specifically say what is supposed to happen if
-         * GLX_CONTEXT_ES2_PROFILE_BIT_EXT is set but the version requested is
-         * not 2.0.  We choose to generate GLXBadProfileARB as this matches
-         * NVIDIA's behavior.
-         */
-        if (major_version != 2 || minor_version != 0)
-            return __glXError(GLXBadProfileARB);
         break;
     default:
         return __glXError(GLXBadProfileARB);
@@ -333,6 +326,9 @@ __glXDisp_CreateContextAttribsARB(__GLXclientState * cl, GLbyte * pc)
     ctx->drawPriv = NULL;
     ctx->readPriv = NULL;
     ctx->resetNotificationStrategy = reset;
+#ifdef GLX_CONTEXT_RELEASE_BEHAVIOR_ARB
+    ctx->releaseBehavior = flush;
+#endif
 
     /* Add the new context to the various global tables of GLX contexts.
      */

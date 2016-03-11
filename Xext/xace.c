@@ -29,11 +29,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "gcstruct.h"
 #include "xacestr.h"
 
-#define XSERV_t
-#define TRANS_SERVER
-#include <X11/Xtrans/Xtrans.h>
-#include "../os/osdep.h"
-
 _X_EXPORT CallbackListPtr XaceHooks[XACE_NUM_HOOKS] = { 0 };
 
 /* Special-cased hook functions.  Called by Xserver.
@@ -213,6 +208,21 @@ XaceHook(int hook, ...)
     return prv ? *prv : Success;
 }
 
+/* XaceHookIsSet
+ *
+ * Utility function to determine whether there are any callbacks listening on a
+ * particular XACE hook.
+ *
+ * Returns non-zero if there is a callback, zero otherwise.
+ */
+int
+XaceHookIsSet(int hook)
+{
+    if (hook < 0 || hook >= XACE_NUM_HOOKS)
+        return 0;
+    return XaceHooks[hook] != NULL;
+}
+
 /* XaceCensorImage
  *
  * Called after pScreen->GetImage to prevent pieces or trusted windows from
@@ -327,15 +337,11 @@ XaceCensorImage(ClientPtr client,
 int
 XaceGetConnectionNumber(ClientPtr client)
 {
-    XtransConnInfo ci = ((OsCommPtr) client->osPrivate)->trans_conn;
-
-    return _XSERVTransGetConnectionNumber(ci);
+    return GetClientFd(client);
 }
 
 int
 XaceIsLocal(ClientPtr client)
 {
-    XtransConnInfo ci = ((OsCommPtr) client->osPrivate)->trans_conn;
-
-    return _XSERVTransIsLocal(ci);
+    return ClientIsLocal(client);
 }

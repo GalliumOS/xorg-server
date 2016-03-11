@@ -57,7 +57,6 @@
 #include "mipict.h"
 #include "fbpict.h"
 
-extern int RenderErrBase;
 extern int (*ProcRenderVector[RenderNumberRequests]) (ClientPtr);
 
 static int (*dmxSaveRenderVector[RenderNumberRequests]) (ClientPtr);
@@ -391,7 +390,7 @@ dmxProcRenderAddGlyphs(ClientPtr client)
                   sizeof(xRenderAddGlyphsReq) -
                   (sizeof(CARD32) + sizeof(xGlyphInfo)) * nglyphs);
 
-        gidsCopy = malloc(sizeof(*gidsCopy) * nglyphs);
+        gidsCopy = xallocarray(nglyphs, sizeof(*gidsCopy));
         for (i = 0; i < nglyphs; i++)
             gidsCopy[i] = gids[i];
 
@@ -435,7 +434,7 @@ dmxProcRenderFreeGlyphs(ClientPtr client)
 
         nglyphs = ((client->req_len << 2) - sizeof(xRenderFreeGlyphsReq)) >> 2;
         if (nglyphs) {
-            gids = malloc(sizeof(*gids) * nglyphs);
+            gids = xallocarray(nglyphs, sizeof(*gids));
             for (i = 0; i < nglyphs; i++)
                 gids[i] = ((CARD32 *) (stuff + 1))[i];
 
@@ -570,11 +569,11 @@ dmxProcRenderCompositeGlyphs(ClientPtr client)
         /* The following only works for Render version > 0.2 */
 
         /* All of the XGlyphElt* structure sizes are identical */
-        elts = malloc(nelt * sizeof(XGlyphElt8));
+        elts = xallocarray(nelt, sizeof(XGlyphElt8));
         if (!elts)
             return BadAlloc;
 
-        glyphs = malloc(nglyph * size);
+        glyphs = xallocarray(nglyph, size);
         if (!glyphs) {
             free(elts);
             return BadAlloc;
@@ -926,7 +925,7 @@ dmxChangePictureClip(PicturePtr pPicture, int clipType, void *value, int n)
             int nRects;
 
             nRects = nBox;
-            pRects = pRect = malloc(nRects * sizeof(*pRect));
+            pRects = pRect = xallocarray(nRects, sizeof(*pRect));
 
             while (nBox--) {
                 pRect->x = pBox->x1;

@@ -7,11 +7,9 @@ Date:   Wed Apr 3 13:36:20 2013 -0700
     For linux this driver is long obsolete now.  It may have some relevance
     on non-linux systems.
 
-diff --git a/hw/xfree86/common/xf86pciBus.c b/hw/xfree86/common/xf86pciBus.c
-index b2545be..73a662d 100644
 --- a/hw/xfree86/common/xf86pciBus.c
 +++ b/hw/xfree86/common/xf86pciBus.c
-@@ -1220,8 +1220,9 @@ xf86VideoPtrToDriverList(struct pci_device *dev,
+@@ -1193,8 +1193,9 @@ xf86VideoPtrToDriverList(struct pci_devi
          driverList[idx++] = "nvidia";
  #ifdef __linux__
          driverList[idx++] = "nouveau";

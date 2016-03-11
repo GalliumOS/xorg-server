@@ -857,12 +857,8 @@ dmxResizeWindow(WindowPtr pWindow, int x, int y,
     ScreenPtr pScreen = pWindow->drawable.pScreen;
     DMXScreenInfo *dmxScreen = &dmxScreens[pScreen->myNum];
     dmxWinPrivPtr pWinPriv = DMX_GET_WINDOW_PRIV(pWindow);
-    dmxWinPrivPtr pSibPriv;
     unsigned int m;
     XWindowChanges c;
-
-    if (pSib)
-        pSibPriv = DMX_GET_WINDOW_PRIV(pSib);
 
     DMX_UNWRAP(ResizeWindow, dmxScreen, pScreen);
 #if 1
@@ -973,7 +969,7 @@ dmxDoSetShape(WindowPtr pWindow)
     if (wBoundingShape(pWindow)) {
         pBox = RegionRects(wBoundingShape(pWindow));
         nRect = nBox = RegionNumRects(wBoundingShape(pWindow));
-        pRectFirst = pRect = malloc(nRect * sizeof(*pRect));
+        pRectFirst = pRect = xallocarray(nRect, sizeof(*pRect));
         while (nBox--) {
             pRect->x = pBox->x1;
             pRect->y = pBox->y1;
@@ -996,7 +992,7 @@ dmxDoSetShape(WindowPtr pWindow)
     if (wClipShape(pWindow)) {
         pBox = RegionRects(wClipShape(pWindow));
         nRect = nBox = RegionNumRects(wClipShape(pWindow));
-        pRectFirst = pRect = malloc(nRect * sizeof(*pRect));
+        pRectFirst = pRect = xallocarray(nRect, sizeof(*pRect));
         while (nBox--) {
             pRect->x = pBox->x1;
             pRect->y = pBox->y1;

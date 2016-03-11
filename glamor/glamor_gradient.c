@@ -32,8 +32,6 @@
 
 #include "glamor_priv.h"
 
-#ifdef RENDER
-
 #define LINEAR_SMALL_STOPS (6 + 2)
 #define LINEAR_LARGE_STOPS (16 + 2)
 
@@ -584,27 +582,6 @@ glamor_init_gradient_shader(ScreenPtr screen)
     _glamor_create_radial_gradient_program(screen, RADIAL_LARGE_STOPS, 0);
 }
 
-void
-glamor_fini_gradient_shader(ScreenPtr screen)
-{
-    glamor_screen_private *glamor_priv;
-    int i = 0;
-
-    glamor_priv = glamor_get_screen_private(screen);
-    glamor_make_current(glamor_priv);
-
-    for (i = 0; i < 3; i++) {
-        /* Linear Gradient */
-        if (glamor_priv->gradient_prog[SHADER_GRADIENT_LINEAR][i])
-            glDeleteProgram(glamor_priv->gradient_prog
-                            [SHADER_GRADIENT_LINEAR][i]);
-
-        if (glamor_priv->gradient_prog[SHADER_GRADIENT_RADIAL][i])
-            glDeleteProgram(glamor_priv->gradient_prog
-                            [SHADER_GRADIENT_RADIAL][i]);
-    }
-}
-
 static void
 _glamor_gradient_convert_trans_matrix(PictTransform *from, float to[3][3],
                                       int width, int height, int normalize)
@@ -684,9 +661,9 @@ _glamor_gradient_set_pixmap_destination(ScreenPtr screen,
         return 0;
     }
 
-    glamor_set_destination_pixmap_priv_nc(pixmap_priv);
+    glamor_set_destination_pixmap_priv_nc(glamor_priv, pixmap, pixmap_priv);
 
-    pixmap_priv_get_dest_scale(pixmap_priv, xscale, yscale);
+    pixmap_priv_get_dest_scale(pixmap, pixmap_priv, xscale, yscale);
 
     DEBUGF("xscale = %f, yscale = %f,"
            " x_source = %d, y_source = %d, width = %d, height = %d\n",
@@ -995,15 +972,17 @@ glamor_generate_radial_gradient_picture(ScreenPtr screen,
          vertices, tex_vertices, 0))
         goto GRADIENT_FAIL;
 
+    glamor_set_alu(screen, GXcopy);
+
     /* Set all the stops and colors to shader. */
     if (stops_count > RADIAL_SMALL_STOPS) {
-        stop_colors = malloc(4 * stops_count * sizeof(float));
+        stop_colors = xallocarray(stops_count, 4 * sizeof(float));
         if (stop_colors == NULL) {
             ErrorF("Failed to allocate stop_colors memory.\n");
             goto GRADIENT_FAIL;
         }
 
-        n_stops = malloc(stops_count * sizeof(float));
+        n_stops = xallocarray(stops_count, sizeof(float));
         if (n_stops == NULL) {
             ErrorF("Failed to allocate n_stops memory.\n");
             goto GRADIENT_FAIL;
@@ -1311,6 +1290,8 @@ glamor_generate_linear_gradient_picture(ScreenPtr screen,
          vertices, tex_vertices, 1))
         goto GRADIENT_FAIL;
 
+    glamor_set_alu(screen, GXcopy);
+
     /* Normalize the PTs. */
     glamor_set_normalize_pt(xscale, yscale,
                             pixman_fixed_to_double(src_picture->pSourcePict->
@@ -1336,13 +1317,13 @@ glamor_generate_linear_gradient_picture(ScreenPtr screen,
 
     /* Set all the stops and colors to shader. */
     if (stops_count > LINEAR_SMALL_STOPS) {
-        stop_colors = malloc(4 * stops_count * sizeof(float));
+        stop_colors = xallocarray(stops_count, 4 * sizeof(float));
         if (stop_colors == NULL) {
             ErrorF("Failed to allocate stop_colors memory.\n");
             goto GRADIENT_FAIL;
         }
 
-        n_stops = malloc(stops_count * sizeof(float));
+        n_stops = xallocarray(stops_count, sizeof(float));
         if (n_stops == NULL) {
             ErrorF("Failed to allocate n_stops memory.\n");
             goto GRADIENT_FAIL;
@@ -1473,5 +1454,3 @@ glamor_generate_linear_gradient_picture(ScreenPtr screen,
 }
 
 #endif                          /* End of GLAMOR_GRADIENT_SHADER */
-
-#endif                          /* End of RENDER */

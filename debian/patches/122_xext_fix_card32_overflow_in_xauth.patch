@@ -1,8 +1,13 @@
-diff --git a/Xext/security.c b/Xext/security.c
-index 3699510..5e5a703 100644
---- a/Xext/security.c
-+++ b/Xext/security.c
-@@ -260,9 +260,9 @@ SecurityComputeAuthorizationTimeout(SecurityAuthorizationPtr pAuth,
+Description: Prevent overflow of a CARD32 variable millis by doing bounds checking.
+ This is a patch currently in discussion at fdo #27134, so this patch can be dropped in favor of whatever upstream decides to include.
+Author: Bryce Harrington <bryce@ubuntu.com>
+Bug-Ubuntu: https://launchpad.net/bugs/519049
+
+Index: xorg-server-1.17.2/Xext/security.c
+===================================================================
+--- xorg-server-1.17.2.orig/Xext/security.c
++++ xorg-server-1.17.2/Xext/security.c
+@@ -261,9 +261,9 @@ SecurityComputeAuthorizationTimeout(Secu
      /* maxSecs is the number of full seconds that can be expressed in
       * 32 bits worth of milliseconds
       */
@@ -14,7 +19,7 @@ index 3699510..5e5a703 100644
          pAuth->secondsRemaining = seconds - maxSecs;
          return maxSecs * MILLI_PER_SECOND;
      }
-@@ -296,8 +296,6 @@ SecurityAuthorizationExpired(OsTimerPtr timer, CARD32 time, pointer pval)
+@@ -297,8 +297,6 @@ SecurityAuthorizationExpired(OsTimerPtr
  {
      SecurityAuthorizationPtr pAuth = (SecurityAuthorizationPtr) pval;
  

@@ -108,6 +108,7 @@ int ProcInitialConnection();
 
 #include "windowstr.h"
 #include <X11/fonts/fontstruct.h>
+#include <X11/fonts/fontutil.h>
 #include "dixfontstr.h"
 #include "gcstruct.h"
 #include "selection.h"
@@ -131,10 +132,7 @@ int ProcInitialConnection();
 
 #ifdef XSERVER_DTRACE
 #include "registry.h"
-#include <sys/types.h>
-typedef const char *string;
-
-#include "Xserver-dtrace.h"
+#include "probes.h"
 #endif
 
 #define mskcnt ((MAXCLIENTS + 31) / 32)
@@ -347,7 +345,7 @@ Dispatch(void)
     nextFreeClientID = 1;
     nClients = 0;
 
-    clientReady = malloc(sizeof(int) * MaxClients);
+    clientReady = xallocarray(MaxClients, sizeof(int));
     if (!clientReady)
         return;
 
@@ -966,7 +964,7 @@ ProcQueryTree(ClientPtr client)
     if (numChildren) {
         int curChild = 0;
 
-        childIDs = malloc(numChildren * sizeof(Window));
+        childIDs = xallocarray(numChildren, sizeof(Window));
         if (!childIDs)
             return BadAlloc;
         for (pChild = pWin->lastChild; pChild != pHead;
@@ -2789,7 +2787,7 @@ ProcQueryColors(ClientPtr client)
 
         count =
             bytes_to_int32((client->req_len << 2) - sizeof(xQueryColorsReq));
-        prgbs = calloc(1, count * sizeof(xrgb));
+        prgbs = calloc(count, sizeof(xrgb));
         if (!prgbs && count)
             return BadAlloc;
         if ((rc =
@@ -2911,10 +2909,10 @@ ProcCreateCursor(ClientPtr client)
     if (stuff->x > width || stuff->y > height)
         return BadMatch;
 
-    n = BitmapBytePad(width) * height;
-    srcbits = calloc(1, n);
+    srcbits = calloc(BitmapBytePad(width), height);
     if (!srcbits)
         return BadAlloc;
+    n = BitmapBytePad(width) * height;
     mskbits = malloc(n);
     if (!mskbits) {
         free(srcbits);
@@ -3486,7 +3484,7 @@ NextAvailableClient(void *ospriv)
     xReq data;
 
     i = nextFreeClientID;
-    if (i == MAXCLIENTS)
+    if (i == LimitClients)
         return (ClientPtr) NULL;
     clients[i] = client =
         dixAllocateObjectWithPrivates(ClientRec, PRIVATE_CLIENT);
@@ -3506,7 +3504,7 @@ NextAvailableClient(void *ospriv)
     }
     if (i == currentMaxClients)
         currentMaxClients++;
-    while ((nextFreeClientID < MAXCLIENTS) && clients[nextFreeClientID])
+    while ((nextFreeClientID < LimitClients) && clients[nextFreeClientID])
         nextFreeClientID++;
 
     /* Enable client ID tracking. This must be done before

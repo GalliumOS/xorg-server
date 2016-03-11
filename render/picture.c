@@ -61,7 +61,7 @@ PictureWindowFormat(WindowPtr pWindow)
                               WindowGetVisual(pWindow));
 }
 
-Bool
+static Bool
 PictureDestroyWindow(WindowPtr pWindow)
 {
     ScreenPtr pScreen = pWindow->drawable.pScreen;
@@ -82,7 +82,7 @@ PictureDestroyWindow(WindowPtr pWindow)
     return ret;
 }
 
-Bool
+static Bool
 PictureCloseScreen(ScreenPtr pScreen)
 {
     PictureScreenPtr ps = GetPictureScreen(pScreen);
@@ -102,7 +102,7 @@ PictureCloseScreen(ScreenPtr pScreen)
     return ret;
 }
 
-void
+static void
 PictureStoreColors(ColormapPtr pColormap, int ndef, xColorItem * pdef)
 {
     ScreenPtr pScreen = pColormap->pScreen;
@@ -163,7 +163,7 @@ addFormat(FormatInitRec formats[256], int nformat, CARD32 format, CARD8 depth)
 
 #define Mask(n) ((1 << (n)) - 1)
 
-PictFormatPtr
+static PictFormatPtr
 PictureCreateDefaultFormats(ScreenPtr pScreen, int *nformatp)
 {
     int nformats, f;
@@ -439,7 +439,7 @@ PictureFindVisual(ScreenPtr pScreen, VisualID visual)
     return 0;
 }
 
-Bool
+static Bool
 PictureInitIndexedFormat(ScreenPtr pScreen, PictFormatPtr format)
 {
     PictureScreenPtr ps = GetPictureScreenIfSet(pScreen);
@@ -625,6 +625,12 @@ GetPictureBytes(void *value, XID id, ResourceSizePtr size)
     }
 }
 
+static int
+FreePictFormat(void *pPictFormat, XID pid)
+{
+    return Success;
+}
+
 Bool
 PictureInit(ScreenPtr pScreen, PictFormatPtr formats, int nformats)
 {
@@ -724,7 +730,7 @@ PictureInit(ScreenPtr pScreen, PictFormatPtr formats, int nformats)
     return TRUE;
 }
 
-void
+static void
 SetPictureToDefaults(PicturePtr pPicture)
 {
     pPicture->refcnt = 1;
@@ -837,7 +843,7 @@ initGradient(SourcePictPtr pGradient, int stopCount,
         dpos = stopPoints[i];
     }
 
-    pGradient->gradient.stops = malloc(stopCount * sizeof(PictGradientStop));
+    pGradient->gradient.stops = xallocarray(stopCount, sizeof(PictGradientStop));
     if (!pGradient->gradient.stops) {
         *error = BadAlloc;
         return;
@@ -856,7 +862,11 @@ createSourcePicture(void)
 {
     PicturePtr pPicture;
 
-    pPicture = dixAllocateScreenObjectWithPrivates(NULL, PictureRec, PRIVATE_PICTURE);
+    pPicture = dixAllocateScreenObjectWithPrivates(NULL, PictureRec,
+                                                   PRIVATE_PICTURE);
+    if (!pPicture)
+	return 0;
+
     pPicture->pDrawable = 0;
     pPicture->pFormat = 0;
     pPicture->pNext = 0;
@@ -896,7 +906,7 @@ CreateLinearGradientPicture(Picture pid, xPointFixed * p1, xPointFixed * p2,
 {
     PicturePtr pPicture;
 
-    if (nStops < 2) {
+    if (nStops < 1) {
         *error = BadValue;
         return 0;
     }
@@ -936,7 +946,7 @@ CreateRadialGradientPicture(Picture pid, xPointFixed * inner,
     PicturePtr pPicture;
     PictRadialGradient *radial;
 
-    if (nStops < 2) {
+    if (nStops < 1) {
         *error = BadValue;
         return 0;
     }
@@ -979,7 +989,7 @@ CreateConicalGradientPicture(Picture pid, xPointFixed * center, xFixed angle,
 {
     PicturePtr pPicture;
 
-    if (nStops < 2) {
+    if (nStops < 1) {
         *error = BadValue;
         return 0;
     }
@@ -1392,6 +1402,7 @@ FreePicture(void *value, XID pid)
 
     if (--pPicture->refcnt == 0) {
         free(pPicture->transform);
+        free(pPicture->filter_params);
 
         if (pPicture->pSourcePict) {
             if (pPicture->pSourcePict->type != SourcePictTypeSolidFill)
@@ -1427,12 +1438,6 @@ FreePicture(void *value, XID pid)
         }
         dixFreeObjectWithPrivates(pPicture, PRIVATE_PICTURE);
     }
-    return Success;
-}
-
-int
-FreePictFormat(void *pPictFormat, XID pid)
-{
     return Success;
 }
 

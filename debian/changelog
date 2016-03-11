@@ -1,27 +1,329 @@
-xorg-server (2:1.17.1-0ubuntu3.1-galliumos3) vivid; urgency=medium
+xorg-server (2:1.18.1-1ubuntu3-galliumos1) xenial; urgency=medium
 
-  * A patch to fix xkb overlay problems
+  * Added galliumos patches
 
- -- Hugh Greenberg <hugh@galliumos.org>  Fri, 19 Feb 2016 21:05:33 +0000
+ -- Hugh Greenberg <hugh@galliumos.org>  Thu, 10 Mar 2016 11:49:23 +0200
 
-xorg-server (2:1.17.1-0ubuntu3.1-galliumos1) vivid; urgency=medium
+xorg-server (2:1.18.1-1ubuntu3) xenial; urgency=medium
 
-  * Set package version to match provenance
+  * Merge xmir changes from 2:1.17.3-2ubuntu4.
+  * fix-xineramaqueryscreens-for-reverse-prime.diff: Fix unity-greeter
+    crash with nvidia prime.
 
- -- reynhout <reynhout@galliumos.org>  Sun, 10 Jan 2016 21:05:33 +0000
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 25 Feb 2016 11:49:23 +0200
 
-xorg-server (2:1.17.1-0ubuntu4) vivid; urgency=medium
+xorg-server (2:1.18.1-1ubuntu2) xenial; urgency=medium
 
-  * Add ChromeOS scaling and rotation patch
+  * Merge xmir changes from 2:1.17.3-2ubuntu3.
 
- -- Hugh Greenberg <hugh@galliumos.org>  Tue, 24 Nov 2015 16:21:04 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 16 Feb 2016 10:02:03 +0200
 
-xorg-server (2:1.17.1-0ubuntu3.1) vivid; urgency=medium
+xorg-server (2:1.18.1-1ubuntu1) xenial; urgency=medium
 
-  * disable-rotation-transform-gpuscreens.patch:
-    Revert back to disabling rotations on GPU screens. (LP: #1489696)
+  * Merge from Debian experimental
+  * patches: Refreshed, dropped what's upstream.
+  * xmir-fixes.diff: Port xmir to 1.18.
+  * fix-ftbfs-ppc64el.patch: Dropped, not needed anymore.
 
- -- Timo Aaltonen <tjaalton@debian.org>  Wed, 02 Sep 2015 16:21:04 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 08 Dec 2015 19:47:06 +0200
+
+xorg-server (2:1.18.1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * add_support_new_libsystemd.patch,
+    glamor-disable-debugging-msgs.diff,
+    update-intel-pciids.diff:
+    - dropped, upstream
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 09 Feb 2016 10:27:18 +0200
+
+xorg-server (2:1.18.0-3) unstable; urgency=medium
+
+  * update-intel-pciids.diff: Sync dri2 mapping ids for intel.
+  * glamor-disable-debugging-msgs.diff: Make glamor less noisy with
+    recent mesa.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 27 Jan 2016 16:41:59 +0200
+
+xorg-server (2:1.18.0-2) unstable; urgency=medium
+
+  [ Laurent Bigonville ]
+  * Enable systemd socket activation support (Closes: #803254)
+
+  [ Emilio Pozuelo Monfort ]
+  * Let xserver-xorg-dev depend on libxfont-dev, as dixfont.h needs
+    fontutil.h.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 26 Jan 2016 16:25:33 +0200
+
+xorg-server (2:1.18.0-1) experimental; urgency=medium
+
+  * New upstream release.
+    - drop xext-fix-udeb-build.diff, merged upstream
+  * Extend libgbm-dev build-dep to kfreebsd-any as well as linux-any.
+
+ -- Julien Cristau <jcristau@debian.org>  Tue, 10 Nov 2015 22:40:43 +0100
+
+xorg-server (2:1.17.99.902-1) experimental; urgency=medium
+
+  * Team upload.
+  * New upstream release candidate.
+  * Bump x11proto-core and x11proto-randr dependencies per configure.ac.
+  * Stop passing deleted options to configure.
+  * Bump serverminver (video ABI 20.0, input ABI 22.1).
+
+ -- Julien Cristau <jcristau@debian.org>  Thu, 29 Oct 2015 09:58:55 +0000
+
+xorg-server (2:1.17.3-2ubuntu4) xenial; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Revert swapinterval 0 change
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Tue, 16 Feb 2016 09:35:17 -0800
+
+xorg-server (2:1.17.3-2ubuntu3) xenial; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Add ability to set title for XMir (LP: #1542028)
+    - Use swapinterval 0 (LP: #1502738)
+    - Add sufficient traversal hacks for Matchbox
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Mon, 15 Feb 2016 17:32:21 -0800
+
+xorg-server (2:1.17.3-2ubuntu2) xenial; urgency=medium
+
+  * Disable mir on s390x.
+
+ -- Dimitri John Ledkov <xnox@ubuntu.com>  Wed, 25 Nov 2015 16:11:38 +0000
+
+xorg-server (2:1.17.3-2ubuntu1) xenial; urgency=medium
+
+  [ Robert Ancell ]
+  * debian/patches/xmir.patch:
+    - Update to latest version
+  * debian/patches/xmir-rootless.patch:
+    - Merged into xmir.patch
+
+  [ Timo Aaltonen ]
+  * Merge from Debian. (LP: #1511649)
+  * glamor-make-current-in-prepare-paths.diff,
+    linux-Do-not-call-FatalError-from-xf86CloseConsole.patch:
+    Dropped, upstream.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 10 Nov 2015 18:20:55 +0200
+
+xorg-server (2:1.17.3-2) unstable; urgency=medium
+
+  * Finalize xserver-xorg-core.NEWS.  Thanks, Michael Biebl!
+
+ -- Julien Cristau <jcristau@debian.org>  Tue, 27 Oct 2015 22:55:25 +0000
+
+xorg-server (2:1.17.3-1) unstable; urgency=medium
+
+  [ Julien Cristau ]
+  * New upstream release
+    - mi: fix typo in warning about overflowing queue (closes: #726041)
+  * Refresh 02_kbsd-input-devd.diff and 03_static-nettle.diff.
+  * Replace xorg-wrapper-envp.diff with a cherry-pick from master.
+  * New patch xext-fix-udeb-build.diff to fix build regression in 1.17.3.
+  * Add NEWS file for xserver-xorg-core with info about the -legacy split
+    (closes: #801487).
+  * Recommend libpam-systemd (closes:  #802544, #802618, #802327, #802566,
+    probably others)
+
+  [ Andreas Boll ]
+  * Use the correct repository for the Vcs-Git field (Closes: #801340).
+    Thanks, Vagrant Cascadian.
+  * Document new location for non-root Xorg log in the NEWS file.
+
+  [ Samuel Thibault ]
+  * Fix xorg-wrapper on hurd (cherry-picked from master).
+
+ -- Julien Cristau <jcristau@debian.org>  Tue, 27 Oct 2015 13:55:55 +0000
+
+xorg-server (2:1.17.2-3) unstable; urgency=medium
+
+  * Team upload.
+  [ Laurent Bigonville ]
+  * Move Xorg.wrap.1 man page from the xserver-xorg-core to
+    xserver-xorg-legacy package (Closes: #797661)
+  * Add a Breaks against systemd (<< 226-4~), before that version logind was
+    restarted on upgrade which makes the X server crash (See #798097)
+  * Bump Standards-Version to 3.9.6 (no further changes)
+
+  [ Andreas Boll ]
+  * Update Vcs-* fields.
+  * Add upstream url.
+
+  [ Julien Cristau ]
+  * Only reset environment in the Xorg wrapper if we didn't drop privileges.
+
+ -- Laurent Bigonville <bigon@debian.org>  Tue, 06 Oct 2015 09:06:22 +0200
+
+xorg-server (2:1.17.2-2) experimental; urgency=medium
+
+  [ Laurent Bigonville ]
+  * Enable logind support for the main build on Linux.
+  * Build and ship the setuid root wrapper from upstream, replacing
+    xserver-xorg's.
+
+  [ Julien Cristau ]
+  * Take over x11-common's handling of the X wrapper; ship the wrapper in a
+    new xserver-xorg-legacy package.
+  * Patch the wrapper to reset Xorg's environment.  I don't believe it needs
+    any variable there, and if that turns out to be wrong we can add a
+    whitelist or hardcode some values.
+
+ -- Julien Cristau <jcristau@debian.org>  Wed, 19 Aug 2015 11:14:05 +0200
+
+xorg-server (2:1.17.2-1.1) unstable; urgency=medium
+
+  * Non-Maintainer Upload.
+
+  [ Sven Joachim ]
+  * Install the whole usr/share/man/man4 directory into xserver-xorg-core,
+    fixes FTBFS on hurd where modesetting.4 does not exist (Closes: #794644).
+
+ -- Samuel Thibault <sthibault@debian.org>  Tue, 11 Aug 2015 10:45:35 +0200
+
+xorg-server (2:1.17.2-1ubuntu10) xenial; urgency=medium
+
+  * debian/patches:
+    - linux-Do-not-call-FatalError-from-xf86CloseConsole.patch: Fix crashers
+      often occuring on shutdown (LP: #1237904) 
+    - xmir.patch: Fix typo causing FTBFS
+
+ -- Tim Lunn <tim@feathertop.org>  Mon, 26 Oct 2015 12:24:30 +1100
+
+xorg-server (2:1.17.2-1ubuntu9) wily; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Fix FTBFS due to change in Mir headers
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 30 Sep 2015 16:15:39 +1300
+
+xorg-server (2:1.17.2-1ubuntu8) wily; urgency=medium
+
+  * debian/control:
+    - xmir depends on xserver-common (LP: #1500848)
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 30 Sep 2015 14:56:38 +1300
+
+xorg-server (2:1.17.2-1ubuntu7) wily; urgency=medium
+
+  * glamor-make-current-in-prepare-paths.diff: Fix LO crashing the
+    server. (LP: #1443456)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 17 Sep 2015 12:04:08 +0300
+
+xorg-server (2:1.17.2-1ubuntu6) wily; urgency=medium
+
+  * os-make-sure-the-clientswritable-fd-set-is-initialized.diff: Fix
+    crashers caused by newer xproto bumping XFD_SETSIZE. (LP: #1484380)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 08 Sep 2015 10:30:31 +0300
+
+xorg-server (2:1.17.2-1ubuntu5) wily; urgency=medium
+
+  * disable-rotation-transform-gpuscreens.patch: Revert back to disabling
+    rotations on GPU screens. It won't work before 1.18. (LP: #1489696)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 02 Sep 2015 15:56:03 +0300
+
+xorg-server (2:1.17.2-1ubuntu4) wily; urgency=medium
+
+  * debian/patches/xmir-rootless.patch:
+    - Fix crash when running XMir in rootless mode (LP: #1472097)
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Thu, 20 Aug 2015 16:31:37 +1200
+
+xorg-server (2:1.17.2-1ubuntu3) wily; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Fix red and blue channels being swapped on Android drivers (LP: #1471146)
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Thu, 30 Jul 2015 15:31:29 +1200
+
+xorg-server (2:1.17.2-1ubuntu2) wily; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Fix cursor crash
+  * debian/patches/xmir-desktop-file-hint-flag.patch:
+    - Split Unity8 hack out from xmir.patch
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 29 Jul 2015 14:18:31 +1200
+
+xorg-server (2:1.17.2-1ubuntu1) wily; urgency=medium
+
+  [ Timo Aaltonen ]
+  * Merge from Debian unstable. (LP: #1471185)
+  * fix-int10.patch: Dropped, upstream.
+  * pixman-validate.patch: Dropped, not upstream and not needed since
+    pixman got fixed.
+  * mi-dont-process-disabled.patch: This has been upstream for some time
+    now, drop it.
+
+  [ Robert Ancell ]
+  * Add patch headers
+  * debian/xserver-xorg-core.install:
+    - Simplify man page install
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Thu, 23 Jul 2015 11:04:33 +1200
+
+xorg-server (2:1.17.2-1) unstable; urgency=medium
+
+  [ Sven Joachim ]
+  * New upstream release.
+    + symbols: Fix sdksyms.sh to cope with gcc5 (Closes: #778187)
+    + os/access: fix regression in server interpreted auth (Closes: #784687)
+    + dix: Fix image byte order on big endian hardware (Closes: #785474)
+    + int10: Fix error check for pci_device_map_legacy (Closes: #787144)
+    + modesetting: Include dix-config.h from dumb_bo.c (Closes: #789823)
+    + unauthorised local client access in XWayland [CVE-2015-3164]
+      (Closes: #788410)
+  * Install the modesetting.4 manpage into xserver-xorg-core (Closes: #789646)
+  * Build xserver-xorg-core-udeb on all architectures again (Closes: #775205)
+  * Update debian/upstream/signing-key.asc.
+
+ -- Julien Cristau <jcristau@debian.org>  Wed, 01 Jul 2015 18:07:40 +0200
+
+xorg-server (2:1.17.1-2) unstable; urgency=medium
+
+  * Disable libdrm support on hurd and in the kfreebsd udeb build, so we don't
+    try building the modesetting driver without libdrm.  We should probably
+    revisit this later and ship modesetting_drv.so in d-i, but this should do
+    for now.
+
+ -- Julien Cristau <jcristau@debian.org>  Mon, 04 May 2015 22:04:01 +0200
+
+xorg-server (2:1.17.1-0ubuntu6) wily; urgency=medium
+
+  * No change rebuild against Mir 0.14.0
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Thu, 16 Jul 2015 10:37:45 +1200
+
+xorg-server (2:1.17.1-0ubuntu5) wily; urgency=medium
+
+  * debain/patches/xmir.patch:
+    - Update from git branch, now builds against Mir 0.14.0
+  * debian/patches/xmir-rootless.patch:
+    - Split out rootless support which requires more extensive changes to
+      existing X code.
+  * debian/control:
+    - Add build-depends on mir-client-platform-mesa-dev
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Mon, 13 Jul 2015 11:33:23 +1200
+
+xorg-server (2:1.17.1-0ubuntu4) wily; urgency=medium
+
+  * debian/control:
+    - Rename xserver-xorg-xmir to xmir
+    - Build build-depends on libmirclient to 0.13.1
+  * debian/xmir.install:
+  * debian/patches/xmir.patch:
+    - Use new XMir implementation
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 03 Jun 2015 14:21:10 +1200
 
 xorg-server (2:1.17.1-0ubuntu3) vivid; urgency=medium
 
@@ -44,9 +346,10 @@ xorg-server (2:1.17.1-0ubuntu1) vivid; urgency=medium
 
  -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Thu, 12 Mar 2015 13:26:04 +0100
 
-xorg-server (2:1.17.1-1) UNRELEASED; urgency=medium
+xorg-server (2:1.17.1-1) experimental; urgency=medium
 
-  * New upstream release candidate 17~rc1.
+  [ Maarten Lankhorst ]
+  * New upstream release 1.17.1.
   * Enable the modesetting driver from xorg-server.
   * Drop upstreamed patches:
     - 09_Xserver-man-iglx.diff
@@ -54,7 +357,11 @@ xorg-server (2:1.17.1-1) UNRELEASED; urgency=medium
     - Is this patch still needed because it seems to be handled now?
   * Bump video abi to 19.
 
- -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Thu, 11 Dec 2014 15:49:13 +0100
+  [ Julien Cristau ]
+  * Bump debhelper compat level to 9.
+  * Update debian/copyright from upstream COPYING.
+
+ -- Julien Cristau <jcristau@debian.org>  Sun, 03 May 2015 18:00:32 +0200
 
 xorg-server (2:1.16.4-1) unstable; urgency=high
 

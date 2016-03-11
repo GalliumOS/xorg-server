@@ -1,8 +1,11 @@
-diff --git a/hw/xfree86/common/xf86AutoConfig.c b/hw/xfree86/common/xf86AutoConfig.c
-index 43c746b..750b425 100644
---- a/hw/xfree86/common/xf86AutoConfig.c
-+++ b/hw/xfree86/common/xf86AutoConfig.c
-@@ -75,6 +75,13 @@
+Description: Load proprietary drivers automatically when installed.
+Author: Robert Hooker <sarvatt@ubuntu.com>
+
+Index: xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
+===================================================================
+--- xorg-server-1.17.2.orig/hw/xfree86/common/xf86AutoConfig.c
++++ xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
+@@ -76,6 +76,13 @@
  	"\tDevice\t" BUILTIN_DEVICE_NAME "\n" \
  	"EndSection\n\n"
  
@@ -16,7 +19,7 @@ index 43c746b..750b425 100644
  #define BUILTIN_LAYOUT_SECTION_PRE \
  	"Section \"ServerLayout\"\n" \
  	"\tIdentifier\t\"Builtin Default Layout\"\n"
-@@ -153,7 +160,11 @@ xf86AutoConfig(void)
+@@ -154,7 +161,11 @@ xf86AutoConfig(void)
      for (p = deviceList; *p; p++) {
          snprintf(buf, sizeof(buf), BUILTIN_DEVICE_SECTION, *p, 0, *p);
          AppendToConfig(buf);
@@ -29,11 +32,11 @@ index 43c746b..750b425 100644
          AppendToConfig(buf);
      }
  
-diff --git a/hw/xfree86/common/xf86pciBus.c b/hw/xfree86/common/xf86pciBus.c
-index e52f1da..bd62a7e 100644
---- a/hw/xfree86/common/xf86pciBus.c
-+++ b/hw/xfree86/common/xf86pciBus.c
-@@ -1107,7 +1107,8 @@ videoPtrToDriverList(struct pci_device *dev,
+Index: xorg-server-1.17.2/hw/xfree86/common/xf86pciBus.c
+===================================================================
+--- xorg-server-1.17.2.orig/hw/xfree86/common/xf86pciBus.c
++++ xorg-server-1.17.2/hw/xfree86/common/xf86pciBus.c
+@@ -1105,7 +1105,8 @@ xf86VideoPtrToDriverList(struct pci_devi
          driverList[0] = "ast";
          break;
      case 0x1002:
@@ -43,7 +46,7 @@ index e52f1da..bd62a7e 100644
          break;
      case 0x102c:
          driverList[0] = "chips";
-@@ -1143,6 +1144,7 @@ videoPtrToDriverList(struct pci_device *dev,
+@@ -1189,6 +1190,7 @@ xf86VideoPtrToDriverList(struct pci_devi
      {
          int idx = 0;
  

@@ -1,3 +1,7 @@
+Description: X can abort if multiple video devices are present, and none are marked as primary.  This makes X just pick the first one it sees and carry on.
+Author: Bryce Harrington <bryce@ubuntu.com>
+Bug-Ubuntu: https://launchpad.net/bugs/459512
+
 diff --git a/hw/xfree86/common/xf86pciBus.c b/hw/xfree86/common/xf86pciBus.c
 index e52f1da..462faa9 100644
 --- a/hw/xfree86/common/xf86pciBus.c

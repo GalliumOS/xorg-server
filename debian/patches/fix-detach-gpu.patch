@@ -1,6 +1,10 @@
+Description: Fix crash in RRCrtcDetachScanoutPixmap.
+Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
+Bug-Ubuntu: https://launchpad.net/bugs/1280743
+
 --- a/hw/xfree86/modes/xf86RandR12.c
 +++ b/hw/xfree86/modes/xf86RandR12.c
-@@ -1800,7 +1800,8 @@
+@@ -1845,7 +1845,8 @@ xf86RandR14ProviderSetOutputSource(Scree
              ScreenPtr cmScreen = pScreen->current_master;
  
              xf86DetachOutputGPU(pScreen);
@@ -10,7 +14,7 @@
          }
          provider->output_source = NULL;
          return TRUE;
-@@ -1811,7 +1812,8 @@
+@@ -1856,7 +1857,8 @@ xf86RandR14ProviderSetOutputSource(Scree
  
      SetRootClip(source_provider->pScreen, FALSE);
  
@@ -20,7 +24,7 @@
      AttachOutputGPU(source_provider->pScreen, pScreen);
  
      provider->output_source = source_provider;
-@@ -1828,7 +1830,8 @@
+@@ -1873,7 +1875,8 @@ xf86RandR14ProviderSetOffloadSink(Screen
          if (provider->offload_sink) {
              ScreenPtr cmScreen = pScreen->current_master;
              xf86DetachOutputGPU(pScreen);
@@ -30,7 +34,7 @@
          }
  
          provider->offload_sink = NULL;
-@@ -1838,7 +1841,8 @@
+@@ -1883,7 +1886,8 @@ xf86RandR14ProviderSetOffloadSink(Screen
      if (provider->offload_sink == sink_provider)
          return TRUE;
  
@@ -40,7 +44,7 @@
      AttachOffloadGPU(sink_provider->pScreen, pScreen);
  
      provider->offload_sink = sink_provider;
-@@ -1917,12 +1921,14 @@
+@@ -1962,12 +1966,14 @@ xf86RandR14ProviderDestroy(ScreenPtr scr
              config->randr_provider->offload_sink = NULL;
              RRSetChanged(screen);
          }
@@ -59,7 +63,7 @@
      config->randr_provider = NULL;
 --- a/dix/dispatch.c
 +++ b/dix/dispatch.c
-@@ -3911,6 +3911,8 @@ AttachUnboundGPU(ScreenPtr pScreen, ScreenPtr new)
+@@ -3952,6 +3952,8 @@ AttachUnboundGPU(ScreenPtr pScreen, Scre
      assert(new->isGPU);
      assert(!new->current_master);
      xorg_list_add(&new->unattached_head, &pScreen->unattached_list);
@@ -68,7 +72,7 @@
      new->current_master = pScreen;
  }
  
-@@ -3937,7 +3937,8 @@
+@@ -3976,7 +3978,8 @@ DetachOutputGPU(ScreenPtr slave)
  {
      assert(slave->isGPU);
      xorg_list_del(&slave->output_head);
@@ -78,7 +82,7 @@
  }
  
  void
-@@ -3953,6 +3954,7 @@
+@@ -3992,6 +3995,7 @@ DetachOffloadGPU(ScreenPtr slave)
  {
      assert(slave->isGPU);
      xorg_list_del(&slave->offload_head);

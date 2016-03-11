@@ -6,6 +6,7 @@
 05_Revert-Unload-submodules.diff
 #08_xfree86_fix_ia64_inx_outx.diff
 
+
 ## Ubuntu patches, not upstreamable
 105_nvidia_fglrx_autodetect.patch
 168_glibc_trace_to_stderr.patch
@@ -35,22 +36,20 @@ no-nv.patch
 #   Probably is just papering over issue; needs further analysis
 
 ## upstream patches
-fix-int10.patch
 
 # hybrid graphics fixes
 228_autobind_gpu.patch
 xf86-inactive-gpuscreen.patch
-xrandr-rroutputchanged-main.patch
 config-add-no-removal.patch
 xf86-ignore-conflicting-rr-caps.patch
 fix-detach-gpu.patch
 disable-rotation-transform-gpuscreens.patch
 
-pixman-validate.patch
-fix-ftbfs-ppc64el.patch
 xmir.patch
+xmir-desktop-file-hint-flag.patch
 drm_device_keep_trying.patch
 xi2-resize-touch.patch
-mi-dont-process-disabled.patch
+xmir-fixes.diff
+fix-xineramaqueryscreens-for-reverse-prime.diff
 1.12.4-Chrome-scaling-and-rotation.patch
 xkb_overlay_fix.patch

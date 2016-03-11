@@ -864,11 +864,13 @@ initializeExtensions(__GLXDRIscreen * screen)
         __glXEnableExtension(screen->glx_enable_bits,
                              "GLX_ARB_create_context_profile");
         __glXEnableExtension(screen->glx_enable_bits,
+                             "GLX_EXT_create_context_es_profile");
+        __glXEnableExtension(screen->glx_enable_bits,
                              "GLX_EXT_create_context_es2_profile");
         LogMessage(X_INFO, "AIGLX: enabled GLX_ARB_create_context\n");
         LogMessage(X_INFO, "AIGLX: enabled GLX_ARB_create_context_profile\n");
         LogMessage(X_INFO,
-                   "AIGLX: enabled GLX_EXT_create_context_es2_profile\n");
+                   "AIGLX: enabled GLX_EXT_create_context_es{,2}_profile\n");
     }
 
     if (DRI2HasSwapControl(pScreen)) {
@@ -920,6 +922,13 @@ initializeExtensions(__GLXDRIscreen * screen)
             LogMessage(X_INFO,
                        "AIGLX: enabled GLX_ARB_create_context_robustness\n");
         }
+
+#ifdef __DRI2_FLUSH_CONTROL
+        if (strcmp(extensions[i]->name, __DRI2_FLUSH_CONTROL) == 0) {
+            __glXEnableExtension(screen->glx_enable_bits,
+                                 "GLX_ARB_context_flush_control\n");
+        }
+#endif
 
         /* Ignore unknown extensions */
     }

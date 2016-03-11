@@ -40,101 +40,6 @@
  } XkbSrvInfoRec, *XkbSrvInfoPtr;
  
  #define	XkbSLI_IsDefault	(1L<<0)
---- a/xkb/xkbInit.c
-+++ b/xkb/xkbInit.c
-@@ -484,6 +484,9 @@
-     XkbControlsPtr ctrls;
- 
-     xkb = xkbi->desc;
-+    xkbi->overlayHistory = ht_create(sizeof(XID), sizeof(XkbOverlayEntry),
-+				     ht_resourceid_hash, ht_resourceid_compare,
-+				     NULL);
-     /* 12/31/94 (ef) -- XXX! Should check if controls loaded from file */
-     if (XkbAllocControls(xkb, XkbAllControlsMask) != Success)
-         FatalError("Couldn't allocate keyboard controls\n");
-@@ -644,6 +647,10 @@
-  unwind_desc:
-     XkbFreeKeyboard(xkb, 0, TRUE);
-  unwind_info:
-+    if (xkbi->overlayHistory) {
-+	ht_destroy(xkbi->overlayHistory);
-+	free(xkbi->overlayHistory);
-+    }
-     free(xkbi);
-     dev->key->xkbInfo = NULL;
-  unwind_kbdfeed:
-@@ -716,6 +723,10 @@
-         XkbFreeKeyboard(xkbi->desc, XkbAllComponentsMask, TRUE);
-         xkbi->desc = NULL;
-     }
-+    if (xkbi->overlayHistory) {
-+	ht_destroy(xkbi->overlayHistory);
-+	free(xkbi->overlayHistory);
-+    }
-     free(xkbi);
-     return;
- }
---- a/xkb/xkbPrKeyEv.c
-+++ b/xkb/xkbPrKeyEv.c
-@@ -121,21 +121,52 @@
-         case XkbKB_Overlay2:
-         {
-             unsigned which;
-+	    XID overlay_key = event->detail.key;
-+	    XkbOverlayEntry *entry;
-+	    int behavior_override = 0;
-+	    enum OverlayAction overlay_action = OA_Nothing;
-+
-+	    /* Store the key code in the overlayHistory hash table or retrieve the
-+	       existing entry */
-+	    if ((entry = ht_find(xkbi->overlayHistory, &overlay_key)) == NULL) {
-+		entry = ht_add(xkbi->overlayHistory, &overlay_key);
-+		if (entry) {
-+		    entry->cur_state = 0;
-+		}
-+	    }
- 
-             if (behavior.type == XkbKB_Overlay1)
-                 which = XkbOverlay1Mask;
-             else
-                 which = XkbOverlay2Mask;
--            if ((xkbi->desc->ctrls->enabled_ctrls & which) == 0)
-+
-+	    /* Force the overlay keycode or the original keycode, if necessary.
-+	       It is possible that the overlay key is released between a key press
-+	       and key release. overlay_action is set if we need to force the original
-+               or enabled key code when this event occurs. */
-+	    if ((!entry->cur_state || entry->cur_state == ET_KeyPress) &&
-+		event->type == ET_KeyRelease) {
-+		overlay_action = OA_ForceOrig;
-+	    }
-+	    if (entry->enabled_cur_state == ET_KeyPress &&
-+		event->type == ET_KeyRelease) {
-+		overlay_action = OA_ForceEnabled;
-+	    }
-+
-+            if (overlay_action == OA_ForceOrig ||
-+		((xkbi->desc->ctrls->enabled_ctrls & which) == 0 &&
-+		 overlay_action != OA_ForceEnabled)) {
-+		entry->cur_state = event->type;
-                 break;
-+	    }
-+
-             if ((behavior.data >= xkbi->desc->min_key_code) &&
-                 (behavior.data <= xkbi->desc->max_key_code)) {
-                 event->detail.key = behavior.data;
--                /* 9/11/94 (ef) -- XXX! need to match release with */
--                /*                 press even if the state of the  */
--                /*                 corresponding overlay control   */
--                /*                 changes while the key is down   */
--            }
-+		entry->enabled_cur_state = event->type;
-+            } else {
-+		entry->cur_state = event->type;
-+	    }
-         }
-             break;
-         default:
 --- a/xkb/Makefile.am
 +++ b/xkb/Makefile.am
 @@ -25,7 +25,8 @@
@@ -585,3 +490,98 @@
 +                                           const void *b);
 +
 +#endif // HASHTABLE_H
+--- a/xkb/xkbInit.c
++++ b/xkb/xkbInit.c
+@@ -484,6 +484,9 @@
+     XkbControlsPtr ctrls;
+ 
+     xkb = xkbi->desc;
++    xkbi->overlayHistory = ht_create(sizeof(XID), sizeof(XkbOverlayEntry),
++				     ht_resourceid_hash, ht_resourceid_compare,
++				     NULL);
+     /* 12/31/94 (ef) -- XXX! Should check if controls loaded from file */
+     if (XkbAllocControls(xkb, XkbAllControlsMask) != Success)
+         FatalError("Couldn't allocate keyboard controls\n");
+@@ -644,6 +647,10 @@
+  unwind_desc:
+     XkbFreeKeyboard(xkb, 0, TRUE);
+  unwind_info:
++    if (xkbi->overlayHistory) {
++	ht_destroy(xkbi->overlayHistory);
++	free(xkbi->overlayHistory);
++    }
+     free(xkbi);
+     dev->key->xkbInfo = NULL;
+  unwind_kbdfeed:
+@@ -716,6 +723,10 @@
+         XkbFreeKeyboard(xkbi->desc, XkbAllComponentsMask, TRUE);
+         xkbi->desc = NULL;
+     }
++    if (xkbi->overlayHistory) {
++	ht_destroy(xkbi->overlayHistory);
++	free(xkbi->overlayHistory);
++    }
+     free(xkbi);
+     return;
+ }
+--- a/xkb/xkbPrKeyEv.c
++++ b/xkb/xkbPrKeyEv.c
+@@ -121,21 +121,52 @@
+         case XkbKB_Overlay2:
+         {
+             unsigned which;
++	    XID overlay_key = event->detail.key;
++	    XkbOverlayEntry *entry;
++	    int behavior_override = 0;
++	    enum OverlayAction overlay_action = OA_Nothing;
++
++	    /* Store the key code in the overlayHistory hash table or retrieve the
++	       existing entry */
++	    if ((entry = ht_find(xkbi->overlayHistory, &overlay_key)) == NULL) {
++		entry = ht_add(xkbi->overlayHistory, &overlay_key);
++		if (entry) {
++		    entry->cur_state = 0;
++		}
++	    }
+ 
+             if (behavior.type == XkbKB_Overlay1)
+                 which = XkbOverlay1Mask;
+             else
+                 which = XkbOverlay2Mask;
+-            if ((xkbi->desc->ctrls->enabled_ctrls & which) == 0)
++
++	    /* Force the overlay keycode or the original keycode, if necessary.
++	       It is possible that the overlay key is released between a key press
++	       and key release. overlay_action is set if we need to force the original
++               or enabled key code when this event occurs. */
++	    if ((!entry->cur_state || entry->cur_state == ET_KeyPress) &&
++		event->type == ET_KeyRelease) {
++		overlay_action = OA_ForceOrig;
++	    }
++	    if (entry->enabled_cur_state == ET_KeyPress &&
++		event->type == ET_KeyRelease) {
++		overlay_action = OA_ForceEnabled;
++	    }
++
++            if (overlay_action == OA_ForceOrig ||
++		((xkbi->desc->ctrls->enabled_ctrls & which) == 0 &&
++		 overlay_action != OA_ForceEnabled)) {
++		entry->cur_state = event->type;
+                 break;
++	    }
++
+             if ((behavior.data >= xkbi->desc->min_key_code) &&
+                 (behavior.data <= xkbi->desc->max_key_code)) {
+                 event->detail.key = behavior.data;
+-                /* 9/11/94 (ef) -- XXX! need to match release with */
+-                /*                 press even if the state of the  */
+-                /*                 corresponding overlay control   */
+-                /*                 changes while the key is down   */
+-            }
++		entry->enabled_cur_state = event->type;
++            } else {
++		entry->cur_state = event->type;
++	    }
+         }
+             break;
+         default:

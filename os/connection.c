@@ -113,17 +113,11 @@ SOFTWARE.
 #ifdef HAVE_GETPEERUCRED
 #include <ucred.h>
 #include <zone.h>
-#endif
-
-#ifdef XSERVER_DTRACE
-#include <sys/types.h>
-typedef const char *string;
-
-#ifndef HAVE_GETPEERUCRED
+#else
 #define zoneid_t int
 #endif
-#include "../dix/Xserver-dtrace.h"
-#endif
+
+#include "probes.h"
 
 static int lastfdesc;           /* maximum file descriptor */
 
@@ -167,9 +161,9 @@ int *ConnectionTranslation = NULL;
  */
 
 #undef MAXSOCKS
-#define MAXSOCKS 500
+#define MAXSOCKS 512
 #undef MAXSELECT
-#define MAXSELECT 500
+#define MAXSELECT 512
 
 struct _ct_node {
     struct _ct_node *next;
@@ -305,7 +299,7 @@ InitConnectionLimits(void)
     if (lastfdesc > MAXCLIENTS) {
         lastfdesc = MAXCLIENTS;
         if (debug_conns)
-            ErrorF("REACHED MAXIMUM CLIENTS LIMIT %d\n", MAXCLIENTS);
+            ErrorF("REACHED MAXIMUM CLIENTS LIMIT %d\n", LimitClients);
     }
     MaxClients = lastfdesc;
 
@@ -315,7 +309,7 @@ InitConnectionLimits(void)
 
 #if !defined(WIN32)
     if (!ConnectionTranslation)
-        ConnectionTranslation = (int *) xnfalloc(sizeof(int) * (lastfdesc + 1));
+        ConnectionTranslation = xnfallocarray(lastfdesc + 1, sizeof(int));
 #else
     InitConnectionTranslation();
 #endif
@@ -433,9 +427,12 @@ CreateWellKnownSockets(void)
             FatalError("Failed to find a socket to listen on");
         snprintf(dynamic_display, sizeof(dynamic_display), "%d", i);
         display = dynamic_display;
+        LogSetDisplay();
     }
 
-    ListenTransFds = malloc(ListenTransCount * sizeof (int));
+    ListenTransFds = xallocarray(ListenTransCount, sizeof (int));
+    if (ListenTransFds == NULL)
+        FatalError ("Failed to create listening socket array");
 
     for (i = 0; i < ListenTransCount; i++) {
         int fd = _XSERVTransGetConnectionNumber(ListenTransConns[i]);
@@ -519,8 +516,13 @@ CloseWellKnownConnections(void)
 {
     int i;
 
-    for (i = 0; i < ListenTransCount; i++)
-        _XSERVTransClose(ListenTransConns[i]);
+    for (i = 0; i < ListenTransCount; i++) {
+        if (ListenTransConns[i] != NULL) {
+            _XSERVTransClose(ListenTransConns[i]);
+            ListenTransConns[i] = NULL;
+        }
+    }
+    ListenTransCount = 0;
 }
 
 static void
@@ -1292,11 +1294,10 @@ ListenOnOpenFD(int fd, int noxauth)
 
     /* Allocate space to store it */
     ListenTransFds =
-        (int *) realloc(ListenTransFds, (ListenTransCount + 1) * sizeof(int));
+        xnfreallocarray(ListenTransFds, ListenTransCount + 1, sizeof(int));
     ListenTransConns =
-        (XtransConnInfo *) realloc(ListenTransConns,
-                                   (ListenTransCount +
-                                    1) * sizeof(XtransConnInfo));
+        xnfreallocarray(ListenTransConns, ListenTransCount + 1,
+                        sizeof(XtransConnInfo));
 
     /* Store it */
     ListenTransConns[ListenTransCount] = ciptr;
