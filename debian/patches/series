@@ -51,5 +51,10 @@ drm_device_keep_trying.patch
 xi2-resize-touch.patch
 xmir-fixes.diff
 fix-xineramaqueryscreens-for-reverse-prime.diff
+
+glamor-factor-out-glamor-set-color.diff
+glamor-source-pictures-are-always-depth-32.diff
+
 1.12.4-Chrome-scaling-and-rotation.patch
 xkb_overlay_fix.patch
+

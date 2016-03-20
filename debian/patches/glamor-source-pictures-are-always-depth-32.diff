@@ -1,0 +1,30 @@
+commit a3e681eafa5355b8bb3b099d47983f14f0d5e197
+Author: Michel Dänzer <michel.daenzer@amd.com>
+Date:   Tue Feb 23 17:19:03 2016 +0900
+
+    glamor: Source pictures are always depth 32
+    
+    We were using the destination pixmap depth to determine the source
+    picture format.
+    
+    Fixes incorrect text rendering with some MATE desktop GTK3 themes.
+    
+    Reviewed-by: Adam Jackson <ajax@redhat.com>
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=94246
+    Signed-off-by: Michel Dänzer <michel.daenzer@amd.com>
+
+--- a/glamor/glamor_program.c
++++ b/glamor/glamor_program.c
+@@ -491,9 +491,9 @@ use_source_solid(CARD8 op, PicturePtr sr
+ 
+     glamor_set_blend(op, prog->alpha, dst);
+ 
+-    glamor_set_color(glamor_get_drawable_pixmap(dst->pDrawable),
+-                     src->pSourcePict->solidFill.color,
+-                     prog->fg_uniform);
++    glamor_set_color_depth(dst->pDrawable->pScreen, 32,
++                           src->pSourcePict->solidFill.color,
++                           prog->fg_uniform);
+     return TRUE;
+ }
+ 

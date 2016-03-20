@@ -1,8 +1,14 @@
-xorg-server (2:1.18.1-1ubuntu3-galliumos1) xenial; urgency=medium
+xorg-server (2:1.18.1-1ubuntu5) xenial; urgency=medium
 
-  * Added galliumos patches
+  * Added GalliumOS patches
 
- -- Hugh Greenberg <hugh@galliumos.org>  Thu, 10 Mar 2016 11:49:23 +0200
+ -- Hugh Greenberg <hugh@galliumos.org>  Fri, 18 Mar 2016 09:36:40 +0200
+
+xorg-server (2:1.18.1-1ubuntu4) xenial; urgency=medium
+
+  * glamor: Fix font rendering issue. (LP: #1555960)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 11 Mar 2016 09:36:40 +0200
 
 xorg-server (2:1.18.1-1ubuntu3) xenial; urgency=medium
 
