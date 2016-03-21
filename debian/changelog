@@ -1,4 +1,4 @@
-xorg-server (2:1.18.1-1ubuntu5) xenial; urgency=medium
+xorg-server (2:1.18.1-1ubuntu4-galliumos1) xenial; urgency=medium
 
   * Added GalliumOS patches
 
