@@ -1,3 +1,9 @@
+xorg-server (2:1.18.1-1ubuntu4-galliumos2) xenial; urgency=medium
+
+  * Added hashtable.h to include/xorg
+
+ -- Hugh Greenberg <hugh@galliumos.org>  Wed, 30 Mar 2016 09:36:40 +0200
+
 xorg-server (2:1.18.1-1ubuntu4-galliumos1) xenial; urgency=medium
 
   * Added GalliumOS patches
