@@ -122,7 +122,8 @@ am__DEPENDENCIES_2 = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	ramdac/libramdac.la ddc/libddc.la i2c/libi2c.la \
 	$(am__DEPENDENCIES_1) dixmods/libxorgxkb.la $(DRI_LIB) \
 	$(DRI2_LIB) $(DRI3_LIB) $(top_builddir)/miext/sync/libsync.la \
-	$(top_builddir)/mi/libmi.la $(top_builddir)/os/libos.la
+	$(top_builddir)/mi/libmi.la $(top_builddir)/os/libos.la \
+	$(top_builddir)/Xext/libXvidmode.la
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
@@ -372,6 +373,7 @@ LIB_MAN_SUFFIX = @LIB_MAN_SUFFIX@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
 MAIN_LIB = @MAIN_LIB@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -458,8 +460,6 @@ XEPHYR_INCS = @XEPHYR_INCS@
 XEPHYR_LIBS = @XEPHYR_LIBS@
 XF86CONFIGDIR = @XF86CONFIGDIR@
 XF86CONFIGFILE = @XF86CONFIGFILE@
-XF86VIDMODE_CFLAGS = @XF86VIDMODE_CFLAGS@
-XF86VIDMODE_LIBS = @XF86VIDMODE_LIBS@
 XKB_BASE_DIRECTORY = @XKB_BASE_DIRECTORY@
 XKB_BIN_DIRECTORY = @XKB_BIN_DIRECTORY@
 XKB_COMPILED_DIR = @XKB_COMPILED_DIR@
@@ -630,7 +630,8 @@ LOCAL_LIBS = \
 	    $(DRI3_LIB) \
 	    $(top_builddir)/miext/sync/libsync.la \
             $(top_builddir)/mi/libmi.la \
-            $(top_builddir)/os/libos.la
+            $(top_builddir)/os/libos.la \
+	    $(top_builddir)/Xext/libXvidmode.la
 
 Xorg_LDADD = \
             $(LOCAL_LIBS) \

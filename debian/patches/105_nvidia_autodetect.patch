@@ -1,10 +1,8 @@
 Description: Load proprietary drivers automatically when installed.
 Author: Robert Hooker <sarvatt@ubuntu.com>
 
-Index: xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
-===================================================================
---- xorg-server-1.17.2.orig/hw/xfree86/common/xf86AutoConfig.c
-+++ xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
+--- a/hw/xfree86/common/xf86AutoConfig.c
++++ b/hw/xfree86/common/xf86AutoConfig.c
 @@ -76,6 +76,13 @@
  	"\tDevice\t" BUILTIN_DEVICE_NAME "\n" \
  	"EndSection\n\n"
@@ -24,7 +22,7 @@ Index: xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
          snprintf(buf, sizeof(buf), BUILTIN_DEVICE_SECTION, *p, 0, *p);
          AppendToConfig(buf);
 -        snprintf(buf, sizeof(buf), BUILTIN_SCREEN_SECTION, *p, 0, *p, 0);
-+        if (strcmp(*p, "fglrx") == 0 || strcmp(*p, "nvidia") == 0)
++        if (strcmp(*p, "nvidia") == 0)
 +            snprintf(buf, sizeof(buf), BUILTIN_SCREEN_SECTION_PROPRIETARY, *p,
 +                     0, *p, 0);
 +        else
@@ -32,21 +30,9 @@ Index: xorg-server-1.17.2/hw/xfree86/common/xf86AutoConfig.c
          AppendToConfig(buf);
      }
  
-Index: xorg-server-1.17.2/hw/xfree86/common/xf86pciBus.c
-===================================================================
---- xorg-server-1.17.2.orig/hw/xfree86/common/xf86pciBus.c
-+++ xorg-server-1.17.2/hw/xfree86/common/xf86pciBus.c
-@@ -1105,7 +1105,8 @@ xf86VideoPtrToDriverList(struct pci_devi
-         driverList[0] = "ast";
-         break;
-     case 0x1002:
--        driverList[0] = "ati";
-+        driverList[0] = "fglrx";
-+        driverList[1] = "ati";
-         break;
-     case 0x102c:
-         driverList[0] = "chips";
-@@ -1189,6 +1190,7 @@ xf86VideoPtrToDriverList(struct pci_devi
+--- a/hw/xfree86/common/xf86pciBus.c
++++ b/hw/xfree86/common/xf86pciBus.c
+@@ -1189,6 +1189,7 @@ xf86VideoPtrToDriverList(struct pci_devi
      {
          int idx = 0;
  

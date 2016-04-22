@@ -89,6 +89,9 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@XV_TRUE@am__append_1 = \
+@XV_TRUE@	glamor_xv.c
+
 subdir = glamor
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ac_define_dir.m4 \
@@ -112,6 +115,21 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libglamor_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
+am__libglamor_la_SOURCES_DIST = glamor.c glamor_context.h \
+	glamor_copy.c glamor_core.c glamor_dash.c glamor_debug.h \
+	glamor_font.c glamor_font.h glamor_glx.c \
+	glamor_composite_glyphs.c glamor_image.c glamor_lines.c \
+	glamor_segs.c glamor_render.c glamor_gradient.c \
+	glamor_prepare.c glamor_prepare.h glamor_program.c \
+	glamor_program.h glamor_rects.c glamor_spans.c glamor_text.c \
+	glamor_transfer.c glamor_transfer.h glamor_transform.c \
+	glamor_transform.h glamor_trapezoid.c glamor_triangles.c \
+	glamor_addtraps.c glamor_glyphblt.c glamor_points.c \
+	glamor_priv.h glamor_pixmap.c glamor_largepixmap.c \
+	glamor_picture.c glamor_vbo.c glamor_window.c glamor_fbo.c \
+	glamor_compositerects.c glamor_utils.c glamor_utils.h \
+	glamor_sync.c glamor.h glamor_xv.c
+@XV_TRUE@am__objects_1 = glamor_xv.lo
 am_libglamor_la_OBJECTS = glamor.lo glamor_copy.lo glamor_core.lo \
 	glamor_dash.lo glamor_font.lo glamor_glx.lo \
 	glamor_composite_glyphs.lo glamor_image.lo glamor_lines.lo \
@@ -122,8 +140,8 @@ am_libglamor_la_OBJECTS = glamor.lo glamor_copy.lo glamor_core.lo \
 	glamor_addtraps.lo glamor_glyphblt.lo glamor_points.lo \
 	glamor_pixmap.lo glamor_largepixmap.lo glamor_picture.lo \
 	glamor_vbo.lo glamor_window.lo glamor_fbo.lo \
-	glamor_compositerects.lo glamor_utils.lo glamor_xv.lo \
-	glamor_sync.lo
+	glamor_compositerects.lo glamor_utils.lo glamor_sync.lo \
+	$(am__objects_1)
 libglamor_la_OBJECTS = $(am_libglamor_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -167,7 +185,7 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(libglamor_la_SOURCES) $(libglamor_egl_stubs_la_SOURCES)
-DIST_SOURCES = $(libglamor_la_SOURCES) \
+DIST_SOURCES = $(am__libglamor_la_SOURCES_DIST) \
 	$(libglamor_egl_stubs_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
@@ -358,6 +376,7 @@ LIB_MAN_SUFFIX = @LIB_MAN_SUFFIX@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
 MAIN_LIB = @MAIN_LIB@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -444,8 +463,6 @@ XEPHYR_INCS = @XEPHYR_INCS@
 XEPHYR_LIBS = @XEPHYR_LIBS@
 XF86CONFIGDIR = @XF86CONFIGDIR@
 XF86CONFIGFILE = @XF86CONFIGFILE@
-XF86VIDMODE_CFLAGS = @XF86VIDMODE_CFLAGS@
-XF86VIDMODE_LIBS = @XF86VIDMODE_LIBS@
 XKB_BASE_DIRECTORY = @XKB_BASE_DIRECTORY@
 XKB_BIN_DIRECTORY = @XKB_BIN_DIRECTORY@
 XKB_COMPILED_DIR = @XKB_COMPILED_DIR@
@@ -572,52 +589,20 @@ top_srcdir = @top_srcdir@
 noinst_LTLIBRARIES = libglamor.la libglamor_egl_stubs.la
 libglamor_la_LIBADD = $(GLAMOR_LIBS)
 AM_CFLAGS = $(CWARNFLAGS) $(DIX_CFLAGS) $(GLAMOR_CFLAGS)
-libglamor_la_SOURCES = \
-	glamor.c \
-	glamor_context.h \
-	glamor_copy.c \
-	glamor_core.c \
-	glamor_dash.c \
-	glamor_debug.h \
-	glamor_font.c \
-	glamor_font.h \
-	glamor_glx.c \
-	glamor_composite_glyphs.c \
-	glamor_image.c \
-	glamor_lines.c \
-	glamor_segs.c \
-	glamor_render.c \
-	glamor_gradient.c \
-	glamor_prepare.c \
-	glamor_prepare.h \
-	glamor_program.c \
-	glamor_program.h \
-	glamor_rects.c \
-	glamor_spans.c \
-	glamor_text.c \
-	glamor_transfer.c \
-	glamor_transfer.h \
-	glamor_transform.c \
-	glamor_transform.h \
-	glamor_trapezoid.c \
-	glamor_triangles.c\
-	glamor_addtraps.c\
-	glamor_glyphblt.c\
-	glamor_points.c\
-	glamor_priv.h\
-	glamor_pixmap.c\
-	glamor_largepixmap.c\
-	glamor_picture.c\
-	glamor_vbo.c \
-	glamor_window.c\
-	glamor_fbo.c\
-	glamor_compositerects.c\
-	glamor_utils.c\
-	glamor_utils.h\
-	glamor_xv.c \
-	glamor_sync.c \
-	glamor.h
-
+libglamor_la_SOURCES = glamor.c glamor_context.h glamor_copy.c \
+	glamor_core.c glamor_dash.c glamor_debug.h glamor_font.c \
+	glamor_font.h glamor_glx.c glamor_composite_glyphs.c \
+	glamor_image.c glamor_lines.c glamor_segs.c glamor_render.c \
+	glamor_gradient.c glamor_prepare.c glamor_prepare.h \
+	glamor_program.c glamor_program.h glamor_rects.c \
+	glamor_spans.c glamor_text.c glamor_transfer.c \
+	glamor_transfer.h glamor_transform.c glamor_transform.h \
+	glamor_trapezoid.c glamor_triangles.c glamor_addtraps.c \
+	glamor_glyphblt.c glamor_points.c glamor_priv.h \
+	glamor_pixmap.c glamor_largepixmap.c glamor_picture.c \
+	glamor_vbo.c glamor_window.c glamor_fbo.c \
+	glamor_compositerects.c glamor_utils.c glamor_utils.h \
+	glamor_sync.c glamor.h $(am__append_1)
 libglamor_egl_stubs_la_SOURCES = glamor_egl_stubs.c
 sdk_HEADERS = glamor.h
 all: all-am

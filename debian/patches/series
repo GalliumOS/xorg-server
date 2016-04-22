@@ -5,13 +5,14 @@
 03_static-nettle.diff
 05_Revert-Unload-submodules.diff
 #08_xfree86_fix_ia64_inx_outx.diff
+os-treat-ssh-as-a-non-local-client.diff
 
 
 ## Ubuntu patches, not upstreamable
-105_nvidia_fglrx_autodetect.patch
+105_nvidia_autodetect.patch
 168_glibc_trace_to_stderr.patch
 188_default_primary_to_first_busid.patch
-190_cache-xkbcomp_output_for_fast_start_up.patch
+#190_cache-xkbcomp_output_for_fast_start_up.patch
 191-Xorg-add-an-extra-module-path.patch
 226_fall_back_to_autoconfiguration.patch
 
@@ -50,11 +51,6 @@ xmir-desktop-file-hint-flag.patch
 drm_device_keep_trying.patch
 xi2-resize-touch.patch
 xmir-fixes.diff
-fix-xineramaqueryscreens-for-reverse-prime.diff
-
-glamor-factor-out-glamor-set-color.diff
-glamor-source-pictures-are-always-depth-32.diff
 
 1.12.4-Chrome-scaling-and-rotation.patch
 xkb_overlay_fix.patch
-

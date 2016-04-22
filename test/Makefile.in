@@ -114,6 +114,7 @@ host_triplet = @host@
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@            $(top_builddir)/hw/xfree86/ddc/libddc.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@            $(top_builddir)/hw/xfree86/i2c/libi2c.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@            $(top_builddir)/hw/xfree86/dixmods/libxorgxkb.la \
+@ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@            $(top_builddir)/Xext/libXvidmode.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@            @XORG_LIBS@
 
 @DRI_TRUE@@ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@am__append_7 = $(top_builddir)/hw/xfree86/dri/libdri.la
@@ -129,6 +130,7 @@ host_triplet = @host@
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@            $(top_builddir)/render/librender.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@            $(top_builddir)/Xext/libXext.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@            $(top_builddir)/Xext/libXextdpmsstubs.la \
+@ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@            $(top_builddir)/Xext/libXvidmode.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@            $(top_builddir)/Xi/libXi.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@            $(top_builddir)/Xi/libXistubs.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@            $(top_builddir)/xfixes/libxfixes.la \
@@ -187,7 +189,8 @@ am__DEPENDENCIES_1 =
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@	$(top_builddir)/hw/xfree86/ramdac/libramdac.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@	$(top_builddir)/hw/xfree86/ddc/libddc.la \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@	$(top_builddir)/hw/xfree86/i2c/libi2c.la \
-@ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@	$(top_builddir)/hw/xfree86/dixmods/libxorgxkb.la
+@ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@	$(top_builddir)/hw/xfree86/dixmods/libxorgxkb.la \
+@ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@	$(top_builddir)/Xext/libXvidmode.la
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@nodist_libxservertest_la_OBJECTS =  \
 @ENABLE_UNIT_TESTS_TRUE@@XORG_FALSE@	ddxstubs.lo miinitext.lo
 @ENABLE_UNIT_TESTS_TRUE@@XORG_TRUE@nodist_libxservertest_la_OBJECTS =  \
@@ -700,6 +703,7 @@ LIB_MAN_SUFFIX = @LIB_MAN_SUFFIX@
 LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
+LT_SYS_LIBRARY_PATH = @LT_SYS_LIBRARY_PATH@
 MAIN_LIB = @MAIN_LIB@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
@@ -786,8 +790,6 @@ XEPHYR_INCS = @XEPHYR_INCS@
 XEPHYR_LIBS = @XEPHYR_LIBS@
 XF86CONFIGDIR = @XF86CONFIGDIR@
 XF86CONFIGFILE = @XF86CONFIGFILE@
-XF86VIDMODE_CFLAGS = @XF86VIDMODE_CFLAGS@
-XF86VIDMODE_LIBS = @XF86VIDMODE_LIBS@
 XKB_BASE_DIRECTORY = @XKB_BASE_DIRECTORY@
 XKB_BIN_DIRECTORY = @XKB_BIN_DIRECTORY@
 XKB_COMPILED_DIR = @XKB_COMPILED_DIR@
