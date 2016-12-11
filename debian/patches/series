@@ -51,3 +51,7 @@ xi2-resize-touch.patch
 randr-adjust-masters-last-set-time.diff
 randr-do-not-check-the-screen-size.diff
 modesetting-unifdef-slave-support.diff
+
+## galliumos patches
+galliumos-1.12.4-Chrome-scaling-and-rotation.patch
+galliumos-xkb_overlay_fix.patch
