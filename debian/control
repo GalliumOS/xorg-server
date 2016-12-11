@@ -103,7 +103,7 @@ Build-Depends:
 # systemd-daemon
   libsystemd-dev [linux-any],
 # XMir
- libmirclient-dev (>= 0.13.1) [!arm64 !powerpc !ppc64el !s390x],
+ libmirclient-dev (>= 0.13.1) [!powerpc !ppc64el !s390x],
  mir-client-platform-mesa-dev,
 Standards-Version: 3.9.6
 Vcs-Git: https://anonscm.debian.org/git/pkg-xorg/xserver/xorg-server.git
@@ -156,10 +156,12 @@ Breaks:
  xserver-xorg (<< 1:7.7+10~),
  systemd (<< 226-4~),
 Replaces:
+ xserver-xorg-video-glamoregl,
  xserver-xorg-video-modesetting,
  xserver-xorg (<< 1:7.7+10~),
 Conflicts:
  xserver-xorg-input-evtouch,
+ xserver-xorg-video-glamoregl,
  xserver-xorg-video-modesetting,
 Provides:
  ${videoabi},
@@ -222,7 +224,7 @@ Depends:
  libxkbfile-dev,
  libpciaccess-dev,
  mesa-common-dev,
- libmirclient-dev [!arm64 !powerpc !ppc64el],
+ libmirclient-dev [!powerpc !ppc64el],
  mir-client-platform-mesa-dev,
  ${misc:Depends},
 Description: Xorg X server - development files
@@ -382,7 +384,7 @@ Description: common files used by various X servers
  This package provides files necessary for all X.Org based X servers.
 
 Package: xmir
-Architecture: amd64 armhf i386
+Architecture: amd64 arm64 armhf i386
 Depends:
  xserver-common (>= ${source:Version}),
  ${shlibs:Depends},

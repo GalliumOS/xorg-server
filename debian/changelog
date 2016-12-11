@@ -1,8 +1,55 @@
-xorg-server (2:1.18.3-1ubuntu2-galliumos1) xenial; urgency=medium
+xorg-server (2:1.18.4-0ubuntu0.2) xenial; urgency=medium
 
-  * Packages for GalliumOS
+  * modesetting-unifdef-slave-support.diff: Fix modesetting slave output
+    names. (LP: #1636397)
 
- -- Hugh Greenberg <hugh@galliumos.org>  Thu, 21 Apr 2016 12:10:12 +0300
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 01 Nov 2016 10:08:51 +0200
+
+xorg-server (2:1.18.4-0ubuntu0.1) xenial; urgency=medium
+
+  * New upstream bugfix release. (LP: #1619142)
+  * randr-adjust-masters-last-set-time.diff,
+    randr-do-not-check-the-screen-size.diff:
+    Fix issues changing display mode on prime setups. (LP: #1586260)
+  * os-treat-ssh-as-a-non-local-client.diff: Dropped, upstream.
+  * drm_device_keep_trying.patch: Dropped, shouldn't be needed anymore,
+    and causes issues on non-x86 archs. (LP: #1581076)
+  * debian/patches/xmir.patch: backport XMir fixes from Ubuntu "Yakkety Yak"
+    - fix button/menu focus failures (lp: #1590553)
+    - ignore 'unnkown 11 event' (lp: #1617925)
+    - don't call epoxy every frame (lp: #1617932)
+    - fix unclickable parts of the screen after rotation (lp: #1613708)
+    - fix key repeat issues (lp: #1591356)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 01 Sep 2016 10:28:26 +0300
+
+xorg-server (2:1.18.3-1ubuntu2.3) xenial; urgency=medium
+
+  [ Timo Aaltonen ]
+  * control: Add Conflicts/Replaces on xserver-xorg-video-glamoregl.
+    (LP: #1574320)
+
+  [ Łukasz 'sil2100' Zemczak ]
+  * debian/control, debian/rules:
+    - Build xmir for arm64 (LP: #1604851).
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 21 Jul 2016 08:27:07 +0300
+
+xorg-server (2:1.18.3-1ubuntu2.2) xenial; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Fix recently added keymap code
+  * debian/patches/xmir-fixes.diff:
+    - Merged into xmir.patch
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 04 May 2016 12:19:14 +1200
+
+xorg-server (2:1.18.3-1ubuntu2.1) xenial; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Pass keymap from Mir to Xkb (LP: #1566487)
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Fri, 29 Apr 2016 15:43:38 +0200
 
 xorg-server (2:1.18.3-1ubuntu2) xenial; urgency=medium
 

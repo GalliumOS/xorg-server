@@ -1,0 +1,87 @@
+Subject: [PATCH xserver] randr: Do not check the screen size bound for gpu screens
+From: Nikhil Mahale <nmahale@nvidia.com>
+Date: 20.05.2016 08:00
+To: <xorg-devel@lists.x.org>
+CC: Nikhil Mahale <nmahale@nvidia.com>
+
+For gpu screen, CrtcSet set/adjust the master screen size along
+mode in following callstack -
+
+  ProcRRSetCrtcConfig()
+    |
+    -> RRCrtcSet()
+        |
+        -> rrCheckPixmapBounding()
+            |
+            -> pScrPriv->rrScreenSetSize()
+
+Checking screen size bound for gpus screen cause some configurations
+to fails, e.g
+
+  $ xrandr --output eDP --mode 1920x1080 --pos 0x0 --output HDMI \
+  --mode 2560x1440 --pos 0x0
+
+  Here xrandr utility first sets screen size to 2560x1440 which
+  gets resized to 1920x1080 on RRSetCrtcConfig request for eDP,
+  and then RRSetCrtcConfig request for HDMI fails because
+  of failure of screen bound check.
+
+Signed-off-by: Nikhil Mahale <nmahale@nvidia.com>
+---
+ randr/rrcrtc.c | 19 ++++++-------------
+ 1 file changed, 6 insertions(+), 13 deletions(-)
+
+diff --git a/randr/rrcrtc.c b/randr/rrcrtc.c
+index 566a3db..82db9a8 100644
+--- a/randr/rrcrtc.c
++++ b/randr/rrcrtc.c
+@@ -1176,27 +1176,20 @@ ProcRRSetCrtcConfig(ClientPtr client)
+ 
+ #ifdef RANDR_12_INTERFACE
+         /*
++         * For gpu screen, CrtcSet set/adjust the master screen size along
++         * with mode.
++         *
+          * Check screen size bounds if the DDX provides a 1.2 interface
+          * for setting screen size. Else, assume the CrtcSet sets
+          * the size along with the mode. If the driver supports transforms,
+          * then it must allow crtcs to display a subset of the screen, so
+          * only do this check for drivers without transform support.
+          */
+-        if (pScrPriv->rrScreenSetSize && !crtc->transforms) {
++        if (!pScreen->isGPU && pScrPriv->rrScreenSetSize && !crtc->transforms) {
+             int source_width;
+             int source_height;
+             PictTransform transform;
+             struct pixman_f_transform f_transform, f_inverse;
+-            int width, height;
+-
+-            if (pScreen->isGPU) {
+-                width = pScreen->current_master->width;
+-                height = pScreen->current_master->height;
+-            }
+-            else {
+-                width = pScreen->width;
+-                height = pScreen->height;
+-            }
+ 
+             RRTransformCompute(stuff->x, stuff->y,
+                                mode->mode.width, mode->mode.height,
+@@ -1206,13 +1199,13 @@ ProcRRSetCrtcConfig(ClientPtr client)
+ 
+             RRModeGetScanoutSize(mode, &transform, &source_width,
+                                  &source_height);
+-            if (stuff->x + source_width > width) {
++            if (stuff->x + source_width > pScreen->width) {
+                 client->errorValue = stuff->x;
+                 free(outputs);
+                 return BadValue;
+             }
+ 
+-            if (stuff->y + source_height > height) {
++            if (stuff->y + source_height > pScreen->height) {
+                 client->errorValue = stuff->y;
+                 free(outputs);
+                 return BadValue;
+-- 2.8.2 ----------------------------------------------------------------------------------- This email message is for the sole use of the intended recipient(s) and may contain confidential information. Any unauthorized review, use, disclosure or distribution is prohibited. If you are not the intended recipient, please contact the sender by reply email and destroy all copies of the original message. ----------------------------------------------------------------------------------- _______________________________________________ xorg-devel@lists.x.org: X.Org development Archives: http://lists.x.org/archives/xorg-devel Info: https://lists.x.org/mailman/listinfo/xorg-devel
+

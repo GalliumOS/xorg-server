@@ -1,0 +1,39 @@
+Subject: [PATCH xserver] randr: Adjust master's last set time with slaves
+From: Nikhil Mahale <nmahale@nvidia.com>
+Date: 20.05.2016 08:01
+To: <xorg-devel@lists.x.org>
+CC: Nikhil Mahale <nmahale@nvidia.com>
+
+In prime configurations master's last set time may not be latest
+and greatest, adjust it with slaves last set time, pick up greatest
+one. Otherwise xserver may end with events which has
+lastSetTime < lastConfigTime even if that's not
+the case and confuse xrandr client.
+
+Signed-off-by: Nikhil Mahale <nmahale@nvidia.com>
+---
+ randr/randr.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/randr/randr.c b/randr/randr.c
+index 3aabb19..c07def1 100644
+--- a/randr/randr.c
++++ b/randr/randr.c
+@@ -584,6 +585,15 @@ RRTellChanged(ScreenPtr pScreen)
+         mastersp = pScrPriv;
+     }
+
++    xorg_list_for_each_entry(iter, &master->output_slave_list, output_head) {
++        pSlaveScrPriv = rrGetScrPriv(iter);
++
++        if (CompareTimeStamps(mastersp->lastSetTime,
++                              pSlaveScrPriv->lastSetTime) == EARLIER) {
++            mastersp->lastSetTime = pSlaveScrPriv->lastSetTime;
++        }
++    }
++
+     if (mastersp->changed) {
+         UpdateCurrentTimeIf();
+         if (mastersp->configChanged) {
+-- 2.8.2 ----------------------------------------------------------------------------------- This email message is for the sole use of the intended recipient(s) and may contain confidential information. Any unauthorized review, use, disclosure or distribution is prohibited. If you are not the intended recipient, please contact the sender by reply email and destroy all copies of the original message. ----------------------------------------------------------------------------------- _______________________________________________ xorg-devel@lists.x.org: X.Org development Archives: http://lists.x.org/archives/xorg-devel Info: https://lists.x.org/mailman/listinfo/xorg-devel
+

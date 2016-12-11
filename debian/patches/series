@@ -5,7 +5,6 @@
 03_static-nettle.diff
 05_Revert-Unload-submodules.diff
 #08_xfree86_fix_ia64_inx_outx.diff
-os-treat-ssh-as-a-non-local-client.diff
 
 
 ## Ubuntu patches, not upstreamable
@@ -48,9 +47,7 @@ disable-rotation-transform-gpuscreens.patch
 
 xmir.patch
 xmir-desktop-file-hint-flag.patch
-drm_device_keep_trying.patch
 xi2-resize-touch.patch
-xmir-fixes.diff
-
-1.12.4-Chrome-scaling-and-rotation.patch
-xkb_overlay_fix.patch
+randr-adjust-masters-last-set-time.diff
+randr-do-not-check-the-screen-size.diff
+modesetting-unifdef-slave-support.diff

@@ -1,0 +1,27 @@
+Subject: [PATCH xserver] modesetting: unifdef MODESETTING_OUTPUT_SLAVE_SUPPORT
+From: Nikhil Mahale <nmahale@nvidia.com>
+Date: 22.10.2016 15:10
+
+Commit c7e8d4a6ee9542f56cd241cf7a960fb8223a6b22 had already
+unifdef MODESETTING_OUTPUT_SLAVE_SUPPORT but commit
+9257b1252da9092ddc676fec9aabe2b33dfad272 didn't
+notice that.
+
+Signed-off-by: Nikhil Mahale <nmahale@nvidia.com>
+---
+ hw/xfree86/drivers/modesetting/drmmode_display.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+--- a/hw/xfree86/drivers/modesetting/drmmode_display.c
++++ b/hw/xfree86/drivers/modesetting/drmmode_display.c
+@@ -1401,10 +1401,8 @@ drmmode_create_name(ScrnInfoPtr pScrn, d
+  fallback:
+     if (koutput->connector_type >= MS_ARRAY_SIZE(output_names))
+         snprintf(name, 32, "Unknown%d-%d", koutput->connector_type, koutput->connector_type_id);
+-#ifdef MODESETTING_OUTPUT_SLAVE_SUPPORT
+     else if (pScrn->is_gpu)
+         snprintf(name, 32, "%s-%d-%d", output_names[koutput->connector_type], pScrn->scrnIndex - GPU_SCREEN_OFFSET + 1, koutput->connector_type_id);
+-#endif
+     else
+         snprintf(name, 32, "%s-%d", output_names[koutput->connector_type], koutput->connector_type_id);
+ }
