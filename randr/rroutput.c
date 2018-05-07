@@ -459,7 +459,7 @@ ProcRRGetOutputInfo(ClientPtr client)
 
     if (extraLen) {
         rep.length += bytes_to_int32(extraLen);
-        extra = malloc(extraLen);
+        extra = calloc(1, extraLen);
         if (!extra)
             return BadAlloc;
     }
@@ -570,12 +570,10 @@ ProcRRSetOutputPrimary(ClientPtr client)
         RRSetPrimaryOutput(pWin->drawable.pScreen, pScrPriv, output);
 
         xorg_list_for_each_entry(slave,
-                                 &pWin->drawable.pScreen->output_slave_list,
-                                 output_head) {
-            rrScrPrivPtr pSlavePriv;
-            pSlavePriv = rrGetScrPriv(slave);
-
-            RRSetPrimaryOutput(slave, pSlavePriv, output);
+                                 &pWin->drawable.pScreen->slave_list,
+                                 slave_head) {
+            if (slave->is_output_slave)
+                RRSetPrimaryOutput(slave, rrGetScrPriv(slave), output);
         }
     }
 

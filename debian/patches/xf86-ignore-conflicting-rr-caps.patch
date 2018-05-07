@@ -4,7 +4,7 @@ Bug-Ubuntu: https://launchpad.net/bugs/1277014
 
 --- a/hw/xfree86/modes/xf86RandR12.c
 +++ b/hw/xfree86/modes/xf86RandR12.c
-@@ -1548,10 +1548,16 @@ xf86RandR12CreateObjects12(ScreenPtr pSc
+@@ -1671,10 +1671,16 @@ xf86RandR12CreateObjects12(ScreenPtr pSc
      }
  
      if (config->name) {

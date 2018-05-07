@@ -2,11 +2,9 @@ Description: Report abort traces to stderr instead of terminal
 Author: Kees Cook <kees@ubuntu.com>
 Bug-Ubuntu: https://launchpad.net/bugs/345748
 
-Index: xorg-server-1.17.2/hw/xfree86/common/xf86Init.c
-===================================================================
---- xorg-server-1.17.2.orig/hw/xfree86/common/xf86Init.c
-+++ xorg-server-1.17.2/hw/xfree86/common/xf86Init.c
-@@ -992,6 +992,9 @@ OsVendorInit(void)
+--- a/hw/xfree86/common/xf86Init.c
++++ b/hw/xfree86/common/xf86Init.c
+@@ -937,6 +937,9 @@ OsVendorInit(void)
  
      if (!beenHere) {
          umask(022);

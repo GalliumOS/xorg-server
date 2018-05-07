@@ -3,7 +3,7 @@ Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
 
 --- a/dix/touch.c
 +++ b/dix/touch.c
-@@ -460,11 +460,25 @@ TouchEventHistoryPush(TouchPointInfoPtr
+@@ -430,11 +430,25 @@ TouchEventHistoryPush(TouchPointInfoPtr
      if (ev->flags & (TOUCH_CLIENT_ID | TOUCH_REPLAYING))
          return;
  

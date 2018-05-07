@@ -5,6 +5,7 @@ Maintainer: Ubuntu X-SWAT <ubuntu-x@lists.ubuntu.com>
 XSBC-Original-Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
 Build-Depends:
  debhelper (>= 9),
+ dh-autoreconf,
  po-debconf,
  dpkg-dev (>= 1.16.1),
  quilt,
@@ -12,14 +13,12 @@ Build-Depends:
  pkg-config,
  bison,
  flex,
- automake,
- libtool,
  xauth,
  xutils-dev (>= 1:7.6+4),
  xfonts-utils (>= 1:7.5+1),
  x11proto-bigreqs-dev (>= 1:1.1.0),
  x11proto-composite-dev (>= 1:0.4),
- x11proto-core-dev (>= 7.0.28),
+ x11proto-core-dev (>= 7.0.31),
  x11proto-damage-dev (>= 1.1),
  x11proto-fixes-dev (>= 1:5.0),
  x11proto-fonts-dev (>= 2.1.3),
@@ -43,7 +42,7 @@ Build-Depends:
  x11proto-input-dev (>= 2.3),
  x11proto-dri2-dev (>= 2.8),
  libxdmcp-dev (>= 1:0.99.1),
- libxfont-dev (>= 1:1.4.2),
+ libxfont-dev (>= 1:2.0.1),
  libxkbfile-dev (>= 1:0.99.1),
  libpixman-1-dev (>= 0.27.2),
  libpciaccess-dev (>= 0.12.901),
@@ -79,6 +78,7 @@ Build-Depends:
  libgbm-dev (>= 10.2) [linux-any kfreebsd-any],
 # XCB bits for Xephyr
  libxcb1-dev,
+ libxcb-xkb-dev,
  libxcb-shape0-dev,
  libxcb-render0-dev,
  libxcb-render-util0-dev,
@@ -94,10 +94,11 @@ Build-Depends:
 # unit tests
  xkb-data,
  x11-xkb-utils,
-# getpeereid()
- libbsd-dev [kfreebsd-any],
+# arc4random_buf(), getpeereid()
+ libbsd-dev,
 # xwayland
  libwayland-dev [linux-any],
+ wayland-protocols (>= 1.9) [linux-any],
 #logind
   libdbus-1-dev (>= 1.0) [linux-any],
 # systemd-daemon
@@ -105,10 +106,10 @@ Build-Depends:
 # XMir
  libmirclient-dev (>= 0.13.1) [!powerpc !ppc64el !s390x],
  mir-client-platform-mesa-dev,
-Standards-Version: 3.9.6
+Standards-Version: 3.9.8
 Vcs-Git: https://anonscm.debian.org/git/pkg-xorg/xserver/xorg-server.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-xorg/xserver/xorg-server.git
-Homepage: http://www.x.org/
+Homepage: https://www.x.org/
 
 Package: xserver-xorg-core
 Architecture: any
@@ -126,42 +127,13 @@ Recommends:
  libpam-systemd,
 Suggests: xfonts-100dpi | xfonts-75dpi, xfonts-scalable
 Breaks:
- xserver-xorg-video,
- xserver-xorg-video-1.0,
- xserver-xorg-video-1.9,
- xserver-xorg-video-2,
- xserver-xorg-video-4,
- xserver-xorg-video-5,
- xserver-xorg-video-6,
- xserver-xorg-input,
- xserver-xorg-input-2,
- xserver-xorg-input-2.1,
- xserver-xorg-input-4,
- xserver-xorg-input-7,
- xserver-xorg-input-wacom (<< 0.7.8),
- xserver-xorg-input-joystick (<= 1:1.5.0-3),
- xserver-xorg-input-synaptics (<= 1.2.2-1),
- xserver-xorg-input-tslib (<= 0.0.6-3),
- xserver-xorg-input-vmmouse (<= 1:12.6.5-4),
- xserver-xorg-input-wacom (<= 0.10.5+20100415-1),
- xserver-xorg-video-cyrix (<= 1:1.1.0-8),
- xserver-xorg-video-i810 (<< 2:2.4),
- xserver-xorg-video-imstt (<= 1:1.1.0-7),
- xserver-xorg-video-nsc (<= 1:2.8.3-4),
- xserver-xorg-video-sunbw2 (<= 1:1.1.0-5),
- xserver-xorg-video-v4l (<< 1:0.2.0),
- xserver-xorg-video-vga (<= 1:4.1.0-8),
- libgl1-mesa-dri (<< 7.10.2-4),
- libgl1-mesa-dri-experimental (<< 7.10.2-4),
  xserver-xorg (<< 1:7.7+10~),
  systemd (<< 226-4~),
 Replaces:
- xserver-xorg-video-glamoregl,
  xserver-xorg-video-modesetting,
  xserver-xorg (<< 1:7.7+10~),
 Conflicts:
  xserver-xorg-input-evtouch,
- xserver-xorg-video-glamoregl,
  xserver-xorg-video-modesetting,
 Provides:
  ${videoabi},
@@ -175,7 +147,7 @@ Description: Xorg X server - core server
  and supersedes all XFree86 X servers.
  .
  More information about X.Org can be found at:
- <URL:http://www.X.org>
+ <URL:https://www.x.org>
  .
  This package is built from the X.org xserver module.
 
@@ -203,7 +175,7 @@ Package: xserver-xorg-dev
 Architecture: any
 Depends:
  libpixman-1-dev (>= 0.27.2),
- x11proto-core-dev (>= 7.0.28),
+ x11proto-core-dev (>= 7.0.31),
  x11proto-input-dev (>= 2.3),
  x11proto-xext-dev (>= 7.2.99.901),
  x11proto-video-dev,
@@ -238,7 +210,7 @@ Description: Xorg X server - development files
  xserver-xorg and/or xserver-xorg-core instead.
  .
  More information about X.Org can be found at:
- <URL:http://www.X.org>
+ <URL:https://www.x.org>
  .
  This package is built from the X.org xserver module.
 
@@ -259,7 +231,7 @@ Description: distributed multihead X server
  line), the clients see a single large screen.
  .
  More information about X.Org can be found at:
- <URL:http://www.X.org>
+ <URL:https://www.x.org>
  .
  This package is built from the X.org xserver module.
 
@@ -274,7 +246,7 @@ Description: Distributed Multihead X tools
  the Xdmx server; see the xdmx package for more information.
  .
  More information about X.Org can be found at:
- <URL:http://www.X.org>
+ <URL:https://www.x.org>
  .
  This package is built from the X.org xserver module.
 
@@ -295,7 +267,7 @@ Description: Nested X server
  Use of the Xephyr X server instead of Xnest is recommended.
  .
  More information about X.Org can be found at:
- <URL:http://www.X.org>
+ <URL:https://www.x.org>
  .
  This package is built from the X.org xserver module.
 
@@ -328,7 +300,7 @@ Description: Virtual Framebuffer 'fake' X server
  program.
  .
  More information about X.Org can be found at:
- <URL:http://www.X.org>
+ <URL:https://www.x.org>
  .
  This package is built from the X.org xserver module.
 
@@ -347,26 +319,9 @@ Description: nested X server
  composite.
  .
  More information about X.Org can be found at:
- <URL:http://www.X.org>
+ <URL:https://www.x.org>
  .
  This package is built from the X.org xserver module.
-
-Package: xserver-xorg-core-dbg
-Architecture: any
-Depends:
- xserver-xorg-core (= ${binary:Version}),
- ${misc:Depends},
-Priority: extra
-Section: debug
-Description: Xorg - the X.Org X server (debugging symbols)
- The Xorg X server is an X server for several architectures and operating
- systems, which is derived from the XFree86 4.x series of X servers.
- .
- The Xorg server supports most modern graphics hardware from most vendors,
- and supersedes all XFree86 X servers.
- .
- This package provides debugging symbols for the Xorg X server and associated
- modules.
 
 Package: xserver-common
 Architecture: all
@@ -393,7 +348,7 @@ Description: Xmir X server
  This package provides an X server running on top of Mir, using Mir
  input devices for input and forwarding either the root window or individual
  top-level windows as wayland surfaces.
- 
+
 Package: xserver-xorg-xmir
 Architecture: all
 Depends: ${shlibs:Depends},
@@ -430,7 +385,6 @@ Description: Xwayland X server
 
 Package: xserver-xorg-legacy
 Architecture: any
-Priority: extra
 Depends:
  xserver-common (>= ${source:Version}),
  ${shlibs:Depends},

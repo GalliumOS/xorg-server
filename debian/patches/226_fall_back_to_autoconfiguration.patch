@@ -1,10 +1,8 @@
 Description: Fall back to autoconfiguration for graphics drivers in some cases instead of letting X fail when configuration files are available.
 Author: Alberto Milone <alberto.milone@canonical.com>
 
-Index: xorg-server-1.17.2/hw/xfree86/common/xf86Globals.c
-===================================================================
---- xorg-server-1.17.2.orig/hw/xfree86/common/xf86Globals.c
-+++ xorg-server-1.17.2/hw/xfree86/common/xf86Globals.c
+--- a/hw/xfree86/common/xf86Globals.c
++++ b/hw/xfree86/common/xf86Globals.c
 @@ -161,6 +161,7 @@ InputDriverPtr *xf86InputDriverList = NU
  int xf86NumInputDrivers = 0;
  int xf86NumScreens = 0;
@@ -13,10 +11,8 @@ Index: xorg-server-1.17.2/hw/xfree86/common/xf86Globals.c
  
  const char *xf86VisualNames[] = {
      "StaticGray",
-Index: xorg-server-1.17.2/hw/xfree86/common/xf86Init.c
-===================================================================
---- xorg-server-1.17.2.orig/hw/xfree86/common/xf86Init.c
-+++ xorg-server-1.17.2/hw/xfree86/common/xf86Init.c
+--- a/hw/xfree86/common/xf86Init.c
++++ b/hw/xfree86/common/xf86Init.c
 @@ -469,20 +469,34 @@ InitOutput(ScreenInfo * pScreenInfo, int
              free(optionlist);
          }
@@ -73,13 +69,11 @@ Index: xorg-server-1.17.2/hw/xfree86/common/xf86Init.c
  
          xf86PostProbe();
  
-Index: xorg-server-1.17.2/hw/xfree86/common/xf86Priv.h
-===================================================================
---- xorg-server-1.17.2.orig/hw/xfree86/common/xf86Priv.h
-+++ xorg-server-1.17.2/hw/xfree86/common/xf86Priv.h
+--- a/hw/xfree86/common/xf86Priv.h
++++ b/hw/xfree86/common/xf86Priv.h
 @@ -89,6 +89,7 @@ extern _X_EXPORT int xf86NumDrivers;
  extern _X_EXPORT Bool xf86Resetting;
- extern _X_EXPORT Bool xf86Initialising;
+ extern Bool xf86Initialising;
  extern _X_EXPORT int xf86NumScreens;
 +extern _X_EXPORT Bool xf86AttemptedFallback;
  extern _X_EXPORT const char *xf86VisualNames[];

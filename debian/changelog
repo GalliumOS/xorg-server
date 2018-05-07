@@ -1,63 +1,501 @@
-xorg-server (2:1.18.4-0ubuntu0.2-galliumos1) xenon; urgency=medium
+xorg-server (2:1.19.6-1ubuntu4-galliumos0) bismuth; urgency=medium
 
-  * add GalliumOS patches:
-    - galliumos-1.12.4-Chrome-scaling-and-rotation.patch
-    - galliumos-xkb_overlay_fix.patch
+  * Prepare for GalliumOS 3.0
+    - patches from 2:1.18.4-0ubuntu0.2-galliumos1
+      - galliumos-1.12.4-Chrome-scaling-and-rotation.patch
+      - galliumos-xkb_overlay_fix.patch
 
- -- reynhout <reynhout@galliumos.org>  Sun, 11 Dec 2016 20:05:07 +0000
+ -- reynhout <reynhout@galliumos.org>  Mon, 07 May 2018 05:17:55 +0000
 
-xorg-server (2:1.18.4-0ubuntu0.2) xenial; urgency=medium
+xorg-server (2:1.19.6-1ubuntu4) bionic; urgency=medium
+
+  * debian/patches/fix-default-permissions.patch: fix default permissions
+    when creating the log directory. (LP: #1735929)
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Fri, 13 Apr 2018 11:31:45 -0400
+
+xorg-server (2:1.19.6-1ubuntu3) bionic; urgency=medium
+
+  * dri2-Sync-i965_pci_ids.h-from-Mesa.patch: Update i965_pci_ids.h to
+    include latest CFL. (LP: #1753954)
+  * server-1.19.diff: Pull fixes from upstream stable branch.
+    (LP: #1748926)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 13 Mar 2018 11:59:01 +0200
+
+xorg-server (2:1.19.6-1ubuntu2) bionic; urgency=medium
+
+  * improve-outputclass.diff: Backport commits from upstream to improve
+    OutputClass to support options and overriding primary GPU.
+  * 191-Xorg-add-an-extra-module-path.patch, rules.flags: Drop adding
+    extra-modules dir, not necessary anymore with outputclass additions.
+  * 105_nvidia_autodetect.patch: Dropped, obsolete now.
+  * 188_default_primary_to_first_busid.patch: Dropped, obsolete now.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 22 Feb 2018 15:45:57 +0200
+
+xorg-server (2:1.19.6-1ubuntu1) bionic; urgency=medium
+
+  * Merge with Debian.
+  * XShmGetImage_fix_censoring.patch: Dropped, upstream.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 26 Jan 2018 17:27:50 +0200
+
+xorg-server (2:1.19.6-1) unstable; urgency=medium
+
+  [ Emilio Pozuelo Monfort ]
+  * Use --sourcedir=debian/tmp/udeb for the udeb package and
+    --sourcedir=debian/tmp/main for the rest, so that we don't have
+    to specify where the files come from as well as where they should
+    be installed to in *.install.
+  * Install xorg-server.pc to a multiarch location. Based on a patch
+    from Helmut Grohne. Closes: #836453.
+  * Move xserver-xorg-legacy to priority optional, as priority extra is
+    deprecated.
+  * Make calculation of xserver-xorg-core's xinput/video ABI provides more
+    robust.
+  * Use ${prefix} rather than ${libexecdir} for --with-module-dir, as the
+    module dir ends up in the pkg-config file, where libexecdir is not
+    defined.
+
+  [ Timo Aaltonen ]
+  * New upstream release.
+  * 07-glx-do-not-pick-srgb-config-for-32bit-rgba-visual.diff: Add a
+    patch from upstream to fix potential issues with mesa git.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 18 Jan 2018 14:11:18 +0200
+
+xorg-server (2:1.19.5-1) unstable; urgency=high
+
+  [ Emilio Pozuelo Monfort ]
+  * rules: Try to simplify a bit flags handling and move them
+    to rules.flags.
+  * rules: Remove --disable-silent-rules, dh passes that for us.
+
+  [ Andreas Boll ]
+  * New upstream release.
+    - CVE-2017-12176, CVE-2017-12177, CVE-2017-12178, CVE-2017-12179,
+    - CVE-2017-12180, CVE-2017-12181, CVE-2017-12182, CVE-2017-12183,
+    - CVE-2017-12184, CVE-2017-12185, CVE-2017-12186, CVE-2017-12187
+
+ -- Julien Cristau <jcristau@debian.org>  Fri, 13 Oct 2017 11:28:05 +0200
+
+xorg-server (2:1.19.5-0ubuntu2) artful; urgency=medium
+
+  * Backport upstream patch to fix cropping in XShmGetImage (LP: #1723732).
+
+ -- Dmitry Shachnev <mitya57@ubuntu.com>  Sun, 15 Oct 2017 14:59:53 +0300
+
+xorg-server (2:1.19.5-0ubuntu1) artful; urgency=medium
+
+  * New upstream release
+    - Fix CVE's:
+      CVE-2017-12176, CVE-2017-12177, CVE-2017-12178, CVE-2017-12179,
+      CVE-2017-12180, CVE-2017-12181, CVE-2017-12182, CVE-2017-12183,
+      CVE-2017-12184, CVE-2017-12185, CVE-2017-12186, CVE-2017-12187
+    - Revert a commit that regressed PRIME sync
+    - os: Make sure big requests have sufficient length.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 13 Oct 2017 08:46:24 +0300
+
+xorg-server (2:1.19.4-1ubuntu2) artful; urgency=medium
+
+  * xvfb-run: Keep redirecting stderr to stdout, autopkgtests need it.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 11 Oct 2017 11:12:57 +0300
+
+xorg-server (2:1.19.4-1ubuntu1) artful; urgency=medium
+
+  * Merge from Debian.
+    - new bugfix release
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 10 Oct 2017 11:13:48 +0300
+
+xorg-server (2:1.19.4-1) unstable; urgency=medium
+
+  [ Sven Joachim ]
+  * xvfb-run: Do not redirect stderr to stdout when running the program
+    (Closes: #868876, LP: #1059947).
+
+  [ Timo Aaltonen ]
+  * New upstream release. (Closes: #855206, #857983, #860886)
+    - CVE-2017-13721, CVE-2017-13723
+  * rules: Drop dh_strip override, dbgsym transition is done
+    (Closes: #876690).
+  * signing-key.asc: Update Adam Jackson's key.
+
+  [ Julien Cristau ]
+  * Restore definition of DEB_HOST_ARCH_OS in debian/rules, lost in dh
+    conversion (2:1.19.1-1).  Thanks, Helmut Grohne!
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 10 Oct 2017 00:33:18 +0300
+
+xorg-server (2:1.19.3-2) unstable; urgency=high
+
+  * CVE-2017-10972: information leak out of the X server due to an
+    uninitialized stack area when swapping:
+    - Xi: Zero target buffer in SProcXSendExtensionEvent
+  * CVE-2017-10971: stack overflow due to missing GenericEvent handling in
+    XSendEvent:
+    - dix: Disallow GenericEvent in SendEvent request
+    - Xi: Verify all events in ProcXSendExtensionEvent
+    - Xi: Do not try to swap GenericEvent
+  * With both those fixes, this closes: #867492
+
+ -- Julien Cristau <jcristau@debian.org>  Fri, 07 Jul 2017 07:31:11 +0200
+
+xorg-server (2:1.19.3-1ubuntu7) artful; urgency=medium
+
+  * Sync from xserver-1.19-branch, drop upstreamed patches:
+    CVE-2017-10971-{1,2,3}.patch,
+    CVE-2017-10972.patch,
+    add-cfl-cnl-ids.diff,
+    sync-i965-ids.diff,
+    xwayland-pointer-confine.diff
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 03 Oct 2017 00:24:32 +0300
+
+xorg-server (2:1.19.3-1ubuntu6) artful; urgency=medium
+
+  * xwayland-add-grab-protocol-support.diff: Dropped, causes issues with
+    kvm. (LP: #1713981)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 30 Aug 2017 14:42:05 +0300
+
+xorg-server (2:1.19.3-1ubuntu5) artful; urgency=medium
+
+  * add-cfl-cnl-ids.diff: Add Coffee Lake and Cannonlake pci-ids.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 28 Aug 2017 18:44:04 +0300
+
+xorg-server (2:1.19.3-1ubuntu4) artful; urgency=medium
+
+  * xwayland-tablet.diff: Add support for Wacom tablets in xwayland.
+    (LP: #1712571)
+  * xwayland-pointer-confine.diff: Add pointer locking/confinement fixes
+    to xwayland.
+  * xwayland-add-grab-protocol-support.diff: Add support for keyboard
+    grabbing to xwayland. Bump wayland-protocols build-dependency to 1.9.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 25 Aug 2017 08:32:17 +0300
+
+xorg-server (2:1.19.3-1ubuntu3) artful; urgency=medium
+
+  * SECURITY UPDATE: DoS and possible code execution in endianness
+    conversion of X Events
+    - debian/patches/CVE-2017-10971-1.patch: do not try to swap
+      GenericEvent in Xi/sendexev.c.
+    - debian/patches/CVE-2017-10971-2.patch: verify all events in
+      ProcXSendExtensionEvent in Xi/sendexev.c.
+    - debian/patches/CVE-2017-10971-3.patch: disallow GenericEvent in
+      SendEvent request in dix/events.c, dix/swapreq.c.
+    - CVE-2017-10971
+  * SECURITY UPDATE: information leak in XEvent handling
+    - debian/patches/CVE-2017-10972.patch: zero target buffer in
+      SProcXSendExtensionEvent in Xi/sendexev.c.
+    - CVE-2017-10972
+
+ -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Mon, 17 Jul 2017 09:34:04 -0400
+
+xorg-server (2:1.19.3-1ubuntu2) artful; urgency=medium
+
+  * sync-i965-ids.diff: Sync i965 pci-id's from mesa.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 10 May 2017 13:03:42 +0300
+
+xorg-server (2:1.19.3-1ubuntu1) zesty; urgency=medium
+
+  [ Timo Aaltonen ]
+  * Merge from Debian experimental. (LP: #1671799)
+    - Patches refreshed
+    - randr-adjust-masters-last-set-time.diff,
+      modesetting-unifdef-slave-support.diff: Dropped, upstream
+    - config-add-no-removal.patch, xf86-inactive-gpuscreen.patch,
+      fix-detach-gpu.patch: Dropped, more or less obsolete
+  * 190_cache-xkbcomp_output_for_fast_start_up.patch: Cleaned up from
+    the package as it wasn't used.
+  * 111_armel-drv-fallbacks.patch: Dropped, we don't ship these drivers
+    anymore.
+  * rules: Drop the workaround that adds lt_cv_prog_compiler_static_works=no
+    to confflags.
+  * 232-xf86compatoutput-valgrind.patch: This was added upstream
+    already, no need to carry a duplicate check.
+  * 208_switch_on_release.diff: Dropped, doesn't work with 1.19.
+  * 228_autobind_gpu.patch: Update from Fedora, fixes nvidia.
+  * disable-rotation-transform-gpuscreens.patch: Dropped, nvidia
+    supports rotation now.
+  * 122_xext_fix_card32_overflow_in_xauth.patch: Dropped, upstream
+    review found issues and it never got applied.
+  * xfree86-no-xv-for-gpuscreens.patch: Drop bogus buglink.
+  * 227_null_ptr_midispcur.patch: Dropped, upstream didn't accept it.
+  * randr-do-not-check-the-screen-size.diff: Dropped, can't reproduce
+    #1586260 anymore without the patch.
+
+  [ Robert Ancell ]
+  * debian/patches/xmir.patch:
+    - Refresh
+    - Fix warnings when built against lp:mir/0.25
+    - Support both Mir 0.24, 0.25 and 0.26 client APIs
+    - Fix crashing on arm64 (LP: #1642297)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Mon, 27 Mar 2017 19:43:08 +0300
+
+xorg-server (2:1.19.3-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 15 Mar 2017 20:53:42 +0100
+
+xorg-server (2:1.19.2-1) unstable; urgency=medium
+
+  [ Andreas Boll ]
+  * xserver-xorg-core.bug.script: Change udevadm path from /sbin to /bin
+    (Closes: #852584).
+
+  [ Emilio Pozuelo Monfort ]
+  * New upstream stable release.
+    - CVE-2017-2624: Timing attack against MIT cookie. Closes: #856398.
+  * control: Build-depend on libbsd-dev everywhere, needed for
+    arc4random_buf for the above fix.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Fri, 03 Mar 2017 15:41:15 +0100
+
+xorg-server (2:1.19.1-4) unstable; urgency=medium
+
+  * rules: Only set the suid bit on Xorg.wrap when building arch:any
+    packages. Thanks Julien Cristau.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Fri, 20 Jan 2017 00:22:09 +0100
+
+xorg-server (2:1.19.1-3) unstable; urgency=medium
+
+  * rules: Fix setting suid bit on Xorg.wrap.
+  * rules: Don't ignore errors when setting the suid bit.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Thu, 19 Jan 2017 19:14:06 +0100
+
+xorg-server (2:1.19.1-2) unstable; urgency=medium
+
+  * rules: Fix udeb regression from dh migration. Should also fix FTBFS
+    on hurd and kfreebsd.
+  * rules: Add --fail-missing to dh_install.
+  * rules: Remove unused vars config_backend_main and
+    config_backend_udeb.
+
+ -- Andreas Boll <andreas.boll.dev@gmail.com>  Wed, 18 Jan 2017 09:46:53 +0100
+
+xorg-server (2:1.19.1-1) unstable; urgency=medium
+
+  [ Emilio Pozuelo Monfort ]
+  * Switch to dh.
+  * Drop build-deps on automake and libtool, dh-autoreconf depends on
+    them for us.
+  * rules: use install consistently.
+  * Drop pre-wheezy Breaks.
+
+  [ Andreas Boll ]
+  * New upstream release.
+    - AttendClient of grab-pervious client must queue to
+      saved_ready_clients [v2] (Closes: #846779, #850940).
+    - present: Only call present_flip_notify if vblank->queued == FALSE
+      (Closes: #849250).
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Tue, 17 Jan 2017 20:43:34 +0100
+
+xorg-server (2:1.19.0-3) unstable; urgency=medium
+
+  * Drop xserver-xorg-core-dbg in favor of xserver-xorg-core-dbgsym.
+  * Cherry-pick upstream commit d6da2086951,
+    Revert "damage: Make damageRegionProcessPending take a damage not a
+    drawable". Fixes a crash caused by trying to free an invalid pointer.
+    Closes: #847025, #848321.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Fri, 16 Dec 2016 19:39:45 +0100
+
+xorg-server (2:1.19.0-2) unstable; urgency=medium
+
+  * Disable glamor on the udeb build. It's not needed there.
+    This has the side effect of fixing the Hurd build.
+  * debian/patches/02_kbsd-input-devd.diff:
+    - Ported to NotifyFd. Fixes the kFreeBSD build.
+  * Bump Standards-Version to 3.9.8; no changes needed.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 23 Nov 2016 19:32:09 +0100
+
+xorg-server (2:1.19.0-1) unstable; urgency=medium
+
+  [ Andreas Boll ]
+  * New upstream release.
+  * rules: Explicitly disable glamor on hurd. Should fix FTBFS on hurd.
+
+  [ Emilio Pozuelo Monfort ]
+  * Upload to unstable.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Tue, 22 Nov 2016 23:27:39 +0100
+
+xorg-server (2:1.18.99.902-1) experimental; urgency=medium
+
+  [ Timo Aaltonen ]
+  * New upstream release candidate 1.
+  * control: Bump libxfont-dev build-dependency.
+  * patches:
+    - refreshed
+    - glamor-Declare-pos-in-the-composite-glyph.diff dropped, upstream
+  * control: Add libxcb-xkb-dev to build-depends.
+  * serverminver: Bumped.
+  * watch: Fix a typo.
+
+  [ Emilio Pozuelo Monfort ]
+  * New upstream release candidate 2.
+  * rules: Drop aiglx enable/disable flags, removed upstream.
+  * control: Bump x11proto-core-dev requirement.
+  * control: Add wayland-protocols build-dep on linux for Xwayland.
+
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Sat, 05 Nov 2016 19:56:43 +0100
+
+xorg-server (2:1.18.4-2) unstable; urgency=medium
+
+  [ Julien Cristau ]
+  * Adjust bug script to look for log files in $HOME/.local/share/xorg in
+    addition to /var/log, to handle unprivileged Xorg.
+  * Update a bunch of URLs in packaging to https.
+
+  [ Andreas Boll ]
+  * Add glamor-Declare-pos-in-the-composite-glyph.diff from upstream
+    (Closes: #834054).
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 06 Sep 2016 16:09:04 +0300
+
+xorg-server (2:1.18.4-1ubuntu9) zesty; urgency=medium
+
+  * control: Depend on libxfont1-dev.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 15 Dec 2016 13:44:15 +0200
+
+xorg-server (2:1.18.4-1ubuntu8) zesty; urgency=medium
+
+  * xvfb-run: Bump default bitdepth to 16 so that GLX works.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 15 Dec 2016 12:33:01 +0200
+
+xorg-server (2:1.18.4-1ubuntu7) zesty; urgency=medium
 
   * modesetting-unifdef-slave-support.diff: Fix modesetting slave output
     names. (LP: #1636397)
 
- -- Timo Aaltonen <tjaalton@debian.org>  Tue, 01 Nov 2016 10:08:51 +0200
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 25 Oct 2016 10:48:45 +0300
 
-xorg-server (2:1.18.4-0ubuntu0.1) xenial; urgency=medium
+xorg-server (2:1.18.4-1ubuntu6) yakkety; urgency=medium
 
-  * New upstream bugfix release. (LP: #1619142)
-  * randr-adjust-masters-last-set-time.diff,
-    randr-do-not-check-the-screen-size.diff:
-    Fix issues changing display mode on prime setups. (LP: #1586260)
-  * os-treat-ssh-as-a-non-local-client.diff: Dropped, upstream.
-  * drm_device_keep_trying.patch: Dropped, shouldn't be needed anymore,
-    and causes issues on non-x86 archs. (LP: #1581076)
-  * debian/patches/xmir.patch: backport XMir fixes from Ubuntu "Yakkety Yak"
-    - fix button/menu focus failures (lp: #1590553)
-    - ignore 'unnkown 11 event' (lp: #1617925)
-    - don't call epoxy every frame (lp: #1617932)
-    - fix unclickable parts of the screen after rotation (lp: #1613708)
-    - fix key repeat issues (lp: #1591356)
+  * debian/patches/xmir.patch:
+    - Don't call epoxy every frame (LP: #1617932)
+    - Ignore 'unknown 11 event' (LP: #1617925)
+    - Improve root window resizing code
+    - Make randr mode names simpler
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 01 Sep 2016 10:28:26 +0300
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 07 Sep 2016 15:50:30 +1200
 
-xorg-server (2:1.18.3-1ubuntu2.3) xenial; urgency=medium
+xorg-server (2:1.18.4-1ubuntu5) yakkety; urgency=medium
 
-  [ Timo Aaltonen ]
-  * control: Add Conflicts/Replaces on xserver-xorg-video-glamoregl.
-    (LP: #1574320)
+  * drm_device_keep_trying.patch: Dropped, shouldn't be needed anymore, and
+    causes issues on non-x86 archs. (LP: #1581076)
 
-  [ Łukasz 'sil2100' Zemczak ]
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 02 Sep 2016 13:59:52 +0300
+
+xorg-server (2:1.18.4-1ubuntu4) yakkety; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Fix button/menu focus failures (LP: #1590553)
+    - Implement XWMHints properly
+    - Add smooth touchpad scroll support (LP: #1603917)
+    - Fix key repeat order
+    - Remove links to Unity8 bugs that are now fixed.
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Thu, 28 Jul 2016 14:31:22 +1200
+
+xorg-server (2:1.18.4-1ubuntu3) yakkety; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Fix bottom/right edge corruption. (LP: #1510849)
+    - Fix key repeat. (LP: #1591356)
+    - Don't delete outputs without replacing them. (LP: #1504422) (LP: #1602561)
+    - Xmir -debug: Log WM types by name and number.
+    - Implement fake GLX frame notification/timing.
+    - Improve focus tracking.
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Thu, 21 Jul 2016 11:42:03 +0200
+
+xorg-server (2:1.18.4-1ubuntu2) yakkety; urgency=medium
+
   * debian/control, debian/rules:
     - Build xmir for arm64 (LP: #1604851).
 
- -- Timo Aaltonen <tjaalton@debian.org>  Thu, 21 Jul 2016 08:27:07 +0300
+ -- Łukasz 'sil2100' Zemczak <lukasz.zemczak@ubuntu.com>  Wed, 20 Jul 2016 18:55:21 +0200
 
-xorg-server (2:1.18.3-1ubuntu2.2) xenial; urgency=medium
+xorg-server (2:1.18.4-1ubuntu1) yakkety; urgency=medium
+
+  * Merge from debian.
+  * glamor-disable-logic-ops-when-doing-compositing.diff: Dropped,
+    upstream.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 20 Jul 2016 08:22:32 +0300
+
+xorg-server (2:1.18.4-1) unstable; urgency=medium
+
+  * New upstream stable release.
+  * os-treat-ssh-as-a-non-local-client.diff, upstream-fixes.diff:
+    Dropped, upstream.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Wed, 20 Jul 2016 06:00:21 +0300
+
+xorg-server (2:1.18.3-2) unstable; urgency=medium
+
+  * Drop 08_xfree86_fix_ia64_inx_outx.diff from the tree, it wasn't
+    applied anyway since Dec'14.
+  * 06_use-intel-only-on-pre-gen4.diff: Use modesetting driver on intel
+    gen4 and newer.
+  * upstream-fixes.diff: Add fixes from 1.18-branch until effd785aa8a97c9.
+  * Document modesetting-on-intel in the NEWS file.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 19 Jul 2016 05:59:24 +0300
+
+xorg-server (2:1.18.3-1ubuntu7) yakkety; urgency=medium
+
+  * glamor-disable-logic-ops-when-doing-compositing.diff: Fix
+    libreoffice with glamor. (LP: #1575000)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 05 Jul 2016 02:08:01 +0300
+
+xorg-server (2:1.18.3-1ubuntu6) yakkety; urgency=medium
+
+  * debian/patches/xmir.patch:
+    - Add focus/unfocus event passing (LP: #1582471)
+
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 01 Jun 2016 11:07:46 +1200
+
+xorg-server (2:1.18.3-1ubuntu5) yakkety; urgency=medium
+
+  * randr-adjust-masters-last-set-time.diff,
+    randr-do-not-check-the-screen-size.diff:
+    Fix issues changing display mode on prime setups. (LP: #1586260)
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Fri, 27 May 2016 11:51:56 +0300
+
+xorg-server (2:1.18.3-1ubuntu4) yakkety; urgency=medium
 
   * debian/patches/xmir.patch:
     - Fix recently added keymap code
-  * debian/patches/xmir-fixes.diff:
-    - Merged into xmir.patch
 
- -- Robert Ancell <robert.ancell@canonical.com>  Wed, 04 May 2016 12:19:14 +1200
+ -- Robert Ancell <robert.ancell@canonical.com>  Wed, 04 May 2016 09:11:32 +1200
 
-xorg-server (2:1.18.3-1ubuntu2.1) xenial; urgency=medium
+xorg-server (2:1.18.3-1ubuntu3) yakkety; urgency=medium
 
   * debian/patches/xmir.patch:
     - Pass keymap from Mir to Xkb (LP: #1566487)
+  * debian/patches/xmir-fixes.diff:
+    - Merged into xmir.patch
 
- -- Robert Ancell <robert.ancell@canonical.com>  Fri, 29 Apr 2016 15:43:38 +0200
+ -- Robert Ancell <robert.ancell@canonical.com>  Fri, 29 Apr 2016 14:36:49 +0200
 
 xorg-server (2:1.18.3-1ubuntu2) xenial; urgency=medium
 

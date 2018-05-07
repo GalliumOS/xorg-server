@@ -146,7 +146,7 @@ number_formatting(void)
     for (i = 0; i < sizeof(unsigned_tests) / sizeof(unsigned_tests[0]); i++)
         assert(check_number_format_test(unsigned_tests[i]));
 
-    for (i = 0; i < sizeof(unsigned_tests) / sizeof(signed_tests[0]); i++)
+    for (i = 0; i < sizeof(signed_tests) / sizeof(signed_tests[0]); i++)
         assert(check_signed_number_format_test(signed_tests[i]));
 
     for (i = 0; i < sizeof(float_tests) / sizeof(float_tests[0]); i++)
@@ -177,7 +177,7 @@ static void logging_format(void)
     strcpy(&buf[sizeof(buf) - 4], "end");
 
     LogInit(log_file_path, NULL);
-    assert(f = fopen(log_file_path, "r"));
+    assert((f = fopen(log_file_path, "r")));
 
 #define read_log_msg(msg) do {                                  \
         msg = fgets(read_buf, sizeof(read_buf), f);             \

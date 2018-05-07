@@ -1,6 +1,5 @@
 Description: Do not bother registering xv/xvmc on gpu screens.
 Author: Maarten Lankhorst <maarten.lankhorst@ubuntu.com>
-Bug-Ubuntu: https://launchpad.net/bugs/1079096
 
 --- a/hw/xfree86/common/xf86xv.c
 +++ b/hw/xfree86/common/xf86xv.c

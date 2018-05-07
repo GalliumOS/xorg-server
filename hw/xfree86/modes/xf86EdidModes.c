@@ -153,6 +153,11 @@ quirk_detailed_v_in_cm(int scrnIndex, xf86MonPtr DDC)
 static Bool
 quirk_detailed_use_maximum_size(int scrnIndex, xf86MonPtr DDC)
 {
+    /* ADA 1024x600 7" display */
+    if (memcmp(DDC->vendor.name, "ADA", 4) == 0 &&
+        DDC->vendor.prod_id == 4)
+        return TRUE;
+
     /* Bug #21324: Iiyama Vision Master 450 */
     if (memcmp(DDC->vendor.name, "IVM", 4) == 0 && DDC->vendor.prod_id == 6400)
         return TRUE;
@@ -971,8 +976,8 @@ handle_cea_svd(struct cea_video_block *video, void *data)
     int vid;
 
     vid = video->video_code & 0x7f;
-    if (vid < CEA_VIDEO_MODES_NUM) {
-        Mode = xf86DuplicateMode(CEAVideoModes + vid);
+    if (vid >= 1 && vid <= CEA_VIDEO_MODES_NUM) {
+        Mode = xf86DuplicateMode(CEAVideoModes + (vid - 1));
         *Modes = xf86ModesAdd(*Modes, Mode);
     }
 }

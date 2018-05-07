@@ -7,6 +7,10 @@ Based on original code by Baptiste Daroussin, with some fixes made
 by Koop Mast and myself.
 
 Signed-off-by: Robert Millan <rmh@freebsd.org>
+
+v2 - Emilio Pozuelo Monfort <pochu@debian.org>
+
+ - Ported to NotifyFd API.
 ---
  config/Makefile.am              |    4 +
  config/config-backends.h        |    5 +
@@ -19,11 +23,9 @@ Signed-off-by: Robert Millan <rmh@freebsd.org>
  8 files changed, 427 insertions(+), 3 deletions(-)
  create mode 100644 config/devd.c
 
-Index: xorg-server/config/Makefile.am
-===================================================================
---- xorg-server.orig/config/Makefile.am
-+++ xorg-server/config/Makefile.am
-@@ -34,6 +34,10 @@ if CONFIG_WSCONS
+--- a/config/Makefile.am
++++ b/config/Makefile.am
+@@ -34,6 +34,10 @@
  libconfig_la_SOURCES += wscons.c
  endif # CONFIG_WSCONS
  
@@ -34,11 +36,9 @@ Index: xorg-server/config/Makefile.am
  endif # !CONFIG_HAL
  
  endif # !CONFIG_UDEV
-Index: xorg-server/config/config-backends.h
-===================================================================
---- xorg-server.orig/config/config-backends.h
-+++ xorg-server/config/config-backends.h
-@@ -44,3 +44,8 @@ void config_hal_fini(void);
+--- a/config/config-backends.h
++++ b/config/config-backends.h
+@@ -44,3 +44,8 @@
  int config_wscons_init(void);
  void config_wscons_fini(void);
  #endif
@@ -47,11 +47,9 @@ Index: xorg-server/config/config-backends.h
 +int config_devd_init(void);
 +void config_devd_fini(void);
 +#endif
-Index: xorg-server/config/config.c
-===================================================================
---- xorg-server.orig/config/config.c
-+++ xorg-server/config/config.c
-@@ -55,6 +55,9 @@ config_init(void)
+--- a/config/config.c
++++ b/config/config.c
+@@ -55,6 +55,9 @@
  #elif defined(CONFIG_WSCONS)
      if (!config_wscons_init())
          ErrorF("[config] failed to initialise wscons\n");
@@ -61,7 +59,7 @@ Index: xorg-server/config/config.c
  #endif
  }
  
-@@ -67,6 +70,8 @@ config_fini(void)
+@@ -67,6 +70,8 @@
      config_hal_fini();
  #elif defined(CONFIG_WSCONS)
      config_wscons_fini();
@@ -70,11 +68,9 @@ Index: xorg-server/config/config.c
  #endif
  }
  
-Index: xorg-server/config/devd.c
-===================================================================
 --- /dev/null
-+++ xorg-server/config/devd.c
-@@ -0,0 +1,387 @@
++++ b/config/devd.c
+@@ -0,0 +1,375 @@
 +/*
 + * Copyright © 2012 Baptiste Daroussin
 + * Copyright © 2014 Robert Millan
@@ -378,39 +374,29 @@ Index: xorg-server/config/devd.c
 +}
 +
 +static void
-+wakeup_handler(void *data, int err, void *read_mask)
++socket_handler(int fd, int ready, void *data)
 +{
 +    char *line = NULL;
 +    char *walk;
 +
-+    if (err < 0)
++    if (socket_getline(sock_devd, &line) < 0)
 +        return;
 +
-+    if (FD_ISSET(sock_devd, (fd_set *) read_mask)) {
-+        if (socket_getline(sock_devd, &line) < 0)
-+            return;
++    walk = strchr(line + 1, ' ');
++    if (walk != NULL)
++        walk[0] = '\0';
 +
-+        walk = strchr(line + 1, ' ');
-+        if (walk != NULL)
-+            walk[0] = '\0';
-+
-+        switch (*line) {
-+        case DEVD_EVENT_ADD:
-+            device_added(line + 1);
-+            break;
-+        case DEVD_EVENT_REMOVE:
-+            device_removed(line + 1);
-+            break;
-+        default:
-+            break;
-+        }
-+        free(line);
++    switch (*line) {
++    case DEVD_EVENT_ADD:
++        device_added(line + 1);
++        break;
++    case DEVD_EVENT_REMOVE:
++        device_removed(line + 1);
++        break;
++    default:
++        break;
 +    }
-+}
-+
-+static void
-+block_handler(void *data, struct timeval **tv, void *read_mask)
-+{
++    free(line);
 +}
 +
 +int
@@ -446,8 +432,7 @@ Index: xorg-server/config/devd.c
 +        return 0;
 +    }
 +
-+    RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler, NULL);
-+    AddGeneralSocket(sock_devd);
++    SetNotifyFd(sock_devd, socket_handler, X_NOTIFY_READ, NULL);
 +
 +    return 1;
 +}
@@ -458,15 +443,12 @@ Index: xorg-server/config/devd.c
 +    if (sock_devd < 0)
 +        return;
 +
-+    RemoveGeneralSocket(sock_devd);
-+    RemoveBlockAndWakeupHandlers(block_handler, wakeup_handler, NULL);
++    RemoveNotifyFd(sock_devd);
 +    close(sock_devd);
 +}
-Index: xorg-server/configure.ac
-===================================================================
---- xorg-server.orig/configure.ac
-+++ xorg-server/configure.ac
-@@ -606,6 +606,7 @@ AC_ARG_ENABLE(dpms,           AS_HELP_ST
+--- a/configure.ac
++++ b/configure.ac
+@@ -627,6 +627,7 @@
  AC_ARG_ENABLE(config-udev,    AS_HELP_STRING([--enable-config-udev], [Build udev support (default: auto)]), [CONFIG_UDEV=$enableval], [CONFIG_UDEV=auto])
  AC_ARG_ENABLE(config-udev-kms,    AS_HELP_STRING([--enable-config-udev-kms], [Build udev kms support (default: auto)]), [CONFIG_UDEV_KMS=$enableval], [CONFIG_UDEV_KMS=auto])
  AC_ARG_ENABLE(config-hal,     AS_HELP_STRING([--disable-config-hal], [Build HAL support (default: auto)]), [CONFIG_HAL=$enableval], [CONFIG_HAL=auto])
@@ -474,7 +456,7 @@ Index: xorg-server/configure.ac
  AC_ARG_ENABLE(config-wscons,  AS_HELP_STRING([--enable-config-wscons], [Build wscons config support (default: auto)]), [CONFIG_WSCONS=$enableval], [CONFIG_WSCONS=auto])
  AC_ARG_ENABLE(xfree86-utils,     AS_HELP_STRING([--enable-xfree86-utils], [Build xfree86 DDX utilities (default: enabled)]), [XF86UTILS=$enableval], [XF86UTILS=yes])
  AC_ARG_ENABLE(vgahw,          AS_HELP_STRING([--enable-vgahw], [Build Xorg with vga access (default: enabled)]), [VGAHW=$enableval], [VGAHW=yes])
-@@ -953,6 +954,21 @@ if test "x$CONFIG_WSCONS" = xyes; then
+@@ -1017,6 +1018,21 @@
  	AC_DEFINE(CONFIG_WSCONS, 1, [Use wscons for input auto configuration])
  fi
  
@@ -493,10 +475,10 @@ Index: xorg-server/configure.ac
 +	AC_DEFINE(CONFIG_DEVD, 1, [Use devd for input auto configuration])
 +fi
 +
- if test "x$USE_SIGIO_BY_DEFAULT" = xyes; then
- 	USE_SIGIO_BY_DEFAULT_VALUE=TRUE
- else
-@@ -2507,7 +2523,7 @@ AC_SUBST([prefix])
+ 
+ AC_MSG_CHECKING([for glibc...])
+ AC_PREPROC_IFELSE([AC_LANG_SOURCE([
+@@ -2566,7 +2582,7 @@
  
  AC_CONFIG_COMMANDS([sdksyms], [touch hw/xfree86/sdksyms.dep])
  
@@ -505,11 +487,9 @@ Index: xorg-server/configure.ac
      AC_MSG_WARN([
               ***********************************************
               Neither HAL nor udev backend will be enabled.
-Index: xorg-server/hw/xfree86/common/xf86Config.c
-===================================================================
---- xorg-server.orig/hw/xfree86/common/xf86Config.c
-+++ xorg-server/hw/xfree86/common/xf86Config.c
-@@ -1384,15 +1384,18 @@ checkCoreInputDevices(serverLayoutPtr se
+--- a/hw/xfree86/common/xf86Config.c
++++ b/hw/xfree86/common/xf86Config.c
+@@ -1375,15 +1375,18 @@
      }
  
      if (!xf86Info.forceInputDevices && !(foundPointer && foundKeyboard)) {
@@ -530,11 +510,9 @@ Index: xorg-server/hw/xfree86/common/xf86Config.c
  #endif
          xf86Msg(X_INFO, "The server relies on %s to provide the list of "
                  "input devices.\n\tIf no devices become available, "
-Index: xorg-server/hw/xfree86/common/xf86Globals.c
-===================================================================
---- xorg-server.orig/hw/xfree86/common/xf86Globals.c
-+++ xorg-server/hw/xfree86/common/xf86Globals.c
-@@ -122,7 +122,8 @@ xf86InfoRec xf86Info = {
+--- a/hw/xfree86/common/xf86Globals.c
++++ b/hw/xfree86/common/xf86Globals.c
+@@ -122,7 +122,8 @@
      .pmFlag = TRUE,
      .disableRandR = FALSE,
      .randRFrom = X_DEFAULT,
@@ -544,11 +522,9 @@ Index: xorg-server/hw/xfree86/common/xf86Globals.c
      .forceInputDevices = FALSE,
      .autoAddDevices = TRUE,
      .autoEnableDevices = TRUE,
-Index: xorg-server/include/dix-config.h.in
-===================================================================
---- xorg-server.orig/include/dix-config.h.in
-+++ xorg-server/include/dix-config.h.in
-@@ -439,6 +439,9 @@
+--- a/include/dix-config.h.in
++++ b/include/dix-config.h.in
+@@ -445,6 +445,9 @@
  /* Enable systemd-logind integration */
  #undef SYSTEMD_LOGIND 1
  

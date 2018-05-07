@@ -45,6 +45,7 @@
 #include "indirect_dispatch.h"
 #include "indirect_table.h"
 #include "indirect_util.h"
+#include "protocol-versions.h"
 
 static char GLXServerVendorName[] = "SGI";
 
@@ -145,7 +146,7 @@ validGlxContext(ClientPtr client, XID id, int access_mode,
     return TRUE;
 }
 
-static int
+int
 validGlxDrawable(ClientPtr client, XID id, int type, int access_mode,
                  __GLXdrawable ** drawable, int *err)
 {
@@ -214,6 +215,7 @@ __glXdirectContextCreate(__GLXscreen * screen,
     if (context == NULL)
         return NULL;
 
+    context->config = modes;
     context->destroy = __glXdirectContextDestroy;
     context->loseCurrent = __glXdirectContextLoseCurrent;
 
@@ -313,16 +315,8 @@ DoCreateContext(__GLXclientState * cl, GLXContextID gcId,
     glxc->id = gcId;
     glxc->share_id = shareList;
     glxc->idExists = GL_TRUE;
-    glxc->currentClient = NULL;
     glxc->isDirect = isDirect;
-    glxc->hasUnflushedCommands = GL_FALSE;
     glxc->renderMode = GL_RENDER;
-    glxc->feedbackBuf = NULL;
-    glxc->feedbackBufSize = 0;
-    glxc->selectBuf = NULL;
-    glxc->selectBufSize = 0;
-    glxc->drawPriv = NULL;
-    glxc->readPriv = NULL;
 
     /* The GLX_ARB_create_context_robustness spec says:
      *
@@ -638,15 +632,14 @@ DoMakeCurrent(__GLXclientState * cl,
         /*
          ** Flush the previous context if needed.
          */
-        Bool need_flush = GL_TRUE;
+        Bool need_flush = !prevglxc->isDirect;
 #ifdef GLX_CONTEXT_RELEASE_BEHAVIOR_ARB
         if (prevglxc->releaseBehavior == GLX_CONTEXT_RELEASE_BEHAVIOR_NONE_ARB)
             need_flush = GL_FALSE;
 #endif
-        if (prevglxc->hasUnflushedCommands && need_flush) {
+        if (need_flush) {
             if (__glXForceCurrent(cl, tag, (int *) &error)) {
                 glFlush();
-                prevglxc->hasUnflushedCommands = GL_FALSE;
             }
             else {
                 return error;
@@ -797,8 +790,8 @@ __glXDisp_QueryVersion(__GLXclientState * cl, GLbyte * pc)
         .type = X_Reply,
         .sequenceNumber = client->sequence,
         .length = 0,
-        .majorVersion = glxMajorVersion,
-        .minorVersion = glxMinorVersion
+        .majorVersion = SERVER_GLX_MAJOR_VERSION,
+        .minorVersion = SERVER_GLX_MINOR_VERSION
     };
 
     if (client->swapped) {
@@ -929,7 +922,6 @@ __glXDisp_CopyContext(__GLXclientState * cl, GLbyte * pc)
              ** in both streams are completed before the copy is executed.
              */
             glFinish();
-            tagcx->hasUnflushedCommands = GL_FALSE;
         }
         else {
             return error;
@@ -1039,13 +1031,14 @@ __glXDisp_GetVisualConfigs(__GLXclientState * cl, GLbyte * pc)
         buf[p++] = modes->samples;
         buf[p++] = GLX_SAMPLE_BUFFERS_SGIS;
         buf[p++] = modes->sampleBuffers;
+        buf[p++] = GLX_VISUAL_SELECT_GROUP_SGIX;
+        buf[p++] = modes->visualSelectGroup;
         /* Add attribute only if its value is not default. */
         if (modes->sRGBCapable != GL_FALSE) {
             buf[p++] = GLX_FRAMEBUFFER_SRGB_CAPABLE_EXT;
             buf[p++] = modes->sRGBCapable;
         }
-        /* Don't add visualSelectGroup (GLX_VISUAL_SELECT_GROUP_SGIX)?
-         * Pad the remaining place with zeroes, so that attributes count is constant. */
+        /* Pad with zeroes, so that attributes count is constant. */
         while (p < GLX_VIS_CONFIG_TOTAL) {
             buf[p++] = 0;
             buf[p++] = 0;
@@ -1113,7 +1106,10 @@ DoGetFBConfigs(__GLXclientState * cl, unsigned screen)
 
         WRITE_PAIR(GLX_VISUAL_ID, modes->visualID);
         WRITE_PAIR(GLX_FBCONFIG_ID, modes->fbconfigID);
-        WRITE_PAIR(GLX_X_RENDERABLE, GL_TRUE);
+        WRITE_PAIR(GLX_X_RENDERABLE,
+                   (modes->drawableType & (GLX_WINDOW_BIT | GLX_PIXMAP_BIT)
+                    ? GL_TRUE
+                    : GL_FALSE));
 
         WRITE_PAIR(GLX_RGBA,
                    (modes->renderType & GLX_RGBA_BIT) ? GL_TRUE : GL_FALSE);
@@ -1703,7 +1699,6 @@ __glXDisp_SwapBuffers(__GLXclientState * cl, GLbyte * pc)
              ** in both streams are completed before the swap is executed.
              */
             glFinish();
-            glxc->hasUnflushedCommands = GL_FALSE;
         }
         else {
             return error;
@@ -1727,7 +1722,7 @@ DoQueryContext(__GLXclientState * cl, GLXContextID gcId)
     ClientPtr client = cl->client;
     __GLXcontext *ctx;
     xGLXQueryContextInfoEXTReply reply;
-    int nProps = 3;
+    int nProps = 5;
     int sendBuf[nProps * 2];
     int nReplyBytes;
     int err;
@@ -1749,6 +1744,10 @@ DoQueryContext(__GLXclientState * cl, GLXContextID gcId)
     sendBuf[3] = (int) (ctx->config->visualID);
     sendBuf[4] = GLX_SCREEN_EXT;
     sendBuf[5] = (int) (ctx->pGlxScreen->pScreen->myNum);
+    sendBuf[6] = GLX_FBCONFIG_ID;
+    sendBuf[7] = (int) (ctx->config->fbconfigID);
+    sendBuf[8] = GLX_RENDER_TYPE;
+    sendBuf[9] = (int) (ctx->config->renderType);
 
     if (client->swapped) {
         __glXSwapQueryContextInfoEXTReply(client, &reply, sendBuf);
@@ -1900,7 +1899,6 @@ __glXDisp_CopySubBufferMESA(__GLXclientState * cl, GLbyte * pc)
              ** in both streams are completed before the swap is executed.
              */
             glFinish();
-            glxc->hasUnflushedCommands = GL_FALSE;
         }
         else {
             return error;
@@ -2123,7 +2121,6 @@ __glXDisp_Render(__GLXclientState * cl, GLbyte * pc)
         left -= cmdlen;
         commandsDone++;
     }
-    glxc->hasUnflushedCommands = GL_TRUE;
     return Success;
 }
 
@@ -2334,7 +2331,6 @@ __glXDisp_RenderLarge(__GLXclientState * cl, GLbyte * pc)
              ** Skip over the header and execute the command.
              */
             (*proc) (cl->largeCmdBuf + __GLX_RENDER_LARGE_HDR_SIZE);
-            glxc->hasUnflushedCommands = GL_TRUE;
 
             /*
              ** Reset for the next RenderLarge series.
@@ -2443,6 +2439,10 @@ __glXDisp_QueryExtensionsString(__GLXclientState * cl, GLbyte * pc)
     return Success;
 }
 
+#ifndef GLX_VENDOR_NAMES_EXT
+#define GLX_VENDOR_NAMES_EXT 0x20F6
+#endif
+
 int
 __glXDisp_QueryServerString(__GLXclientState * cl, GLbyte * pc)
 {
@@ -2454,7 +2454,6 @@ __glXDisp_QueryServerString(__GLXclientState * cl, GLbyte * pc)
     char *buf;
     __GLXscreen *pGlxScreen;
     int err;
-    char ver_str[16];
 
     REQUEST_SIZE_MATCH(xGLXQueryServerStringReq);
 
@@ -2466,15 +2465,17 @@ __glXDisp_QueryServerString(__GLXclientState * cl, GLbyte * pc)
         ptr = GLXServerVendorName;
         break;
     case GLX_VERSION:
-        /* Return to the server version rather than the screen version
-         * to prevent confusion when they do not match.
-         */
-        snprintf(ver_str, 16, "%d.%d", glxMajorVersion, glxMinorVersion);
-        ptr = ver_str;
+        ptr = "1.4";
         break;
     case GLX_EXTENSIONS:
         ptr = pGlxScreen->GLXextensions;
         break;
+    case GLX_VENDOR_NAMES_EXT:
+        if (pGlxScreen->glvnd) {
+            ptr = pGlxScreen->glvnd;
+            break;
+        }
+        /* else fall through */
     default:
         return BadValue;
     }

@@ -9,7 +9,7 @@ Date:   Wed Apr 3 13:36:20 2013 -0700
 
 --- a/hw/xfree86/common/xf86pciBus.c
 +++ b/hw/xfree86/common/xf86pciBus.c
-@@ -1193,8 +1193,9 @@ xf86VideoPtrToDriverList(struct pci_devi
+@@ -1208,8 +1208,9 @@ xf86VideoPtrToDriverList(struct pci_devi
          driverList[idx++] = "nvidia";
  #ifdef __linux__
          driverList[idx++] = "nouveau";

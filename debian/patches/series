@@ -4,53 +4,31 @@
 02_kbsd-input-devd.diff
 03_static-nettle.diff
 05_Revert-Unload-submodules.diff
-#08_xfree86_fix_ia64_inx_outx.diff
+06_use-intel-only-on-pre-gen4.diff
+07-glx-do-not-pick-srgb-config-for-32bit-rgba-visual.diff
 
 
 ## Ubuntu patches, not upstreamable
-105_nvidia_autodetect.patch
 168_glibc_trace_to_stderr.patch
-188_default_primary_to_first_busid.patch
-#190_cache-xkbcomp_output_for_fast_start_up.patch
-191-Xorg-add-an-extra-module-path.patch
 226_fall_back_to_autoconfiguration.patch
 
 ## send upstream
-232-xf86compatoutput-valgrind.patch
 xfree86-no-xv-for-gpuscreens.patch
 no-nv.patch
-
-## waiting for review by upstream
-111_armel-drv-fallbacks.patch
-122_xext_fix_card32_overflow_in_xauth.patch
-#   https://bugs.freedesktop.org/show_bug.cgi?id=27134
-#   http://lists.x.org/archives/xorg-devel/2010-April/007777.html
-#   Resent to mailing list, Feb 2013
-208_switch_on_release.diff
-#   https://bugs.freedesktop.org/show_bug.cgi?id=865
-#   - Violates XKB spec: Section 6.3, SA_LockGroup
-#   http://lists.freedesktop.org/archives/xorg-devel/2013-January/035046.html
-#   - Different implementation proposed on fdo mailing list
-227_null_ptr_midispcur.patch
-#   https://bugs.freedesktop.org/show_bug.cgi?id=24181
-#   Probably is just papering over issue; needs further analysis
 
 ## upstream patches
 
 # hybrid graphics fixes
 228_autobind_gpu.patch
-xf86-inactive-gpuscreen.patch
-config-add-no-removal.patch
 xf86-ignore-conflicting-rr-caps.patch
-fix-detach-gpu.patch
-disable-rotation-transform-gpuscreens.patch
 
 xmir.patch
-xmir-desktop-file-hint-flag.patch
 xi2-resize-touch.patch
-randr-adjust-masters-last-set-time.diff
-randr-do-not-check-the-screen-size.diff
-modesetting-unifdef-slave-support.diff
+xwayland-tablet.diff
+improve-outputclass.diff
+dri2-Sync-i965_pci_ids.h-from-Mesa.patch
+server-1.19.diff
+fix-default-permissions.patch
 
 ## galliumos patches
 galliumos-1.12.4-Chrome-scaling-and-rotation.patch

@@ -89,6 +89,7 @@ compCheckTree(ScreenPtr pScreen)
 typedef struct _compPixmapVisit {
     WindowPtr pWindow;
     PixmapPtr pPixmap;
+    int bw;
 } CompPixmapVisitRec, *CompPixmapVisitPtr;
 
 static Bool
@@ -126,19 +127,20 @@ compSetPixmapVisitWindow(WindowPtr pWindow, void *data)
      */
     SetWinSize(pWindow);
     SetBorderSize(pWindow);
-    if (HasBorder(pWindow))
+    if (pVisit->bw)
         QueueWorkProc(compRepaintBorder, serverClient,
                       (void *) (intptr_t) pWindow->drawable.id);
     return WT_WALKCHILDREN;
 }
 
 void
-compSetPixmap(WindowPtr pWindow, PixmapPtr pPixmap)
+compSetPixmap(WindowPtr pWindow, PixmapPtr pPixmap, int bw)
 {
     CompPixmapVisitRec visitRec;
 
     visitRec.pWindow = pWindow;
     visitRec.pPixmap = pPixmap;
+    visitRec.bw = bw;
     TraverseTree(pWindow, compSetPixmapVisitWindow, (void *) &visitRec);
     compCheckTree(pWindow->drawable.pScreen);
 }
@@ -318,18 +320,13 @@ compClipNotify(WindowPtr pWin, int dx, int dy)
     }
 }
 
-/*
- * Returns TRUE if the window needs server-provided automatic redirect,
- * which is true if the child and parent aren't both regular or ARGB visuals
- */
-
-static Bool
+Bool
 compIsAlternateVisual(ScreenPtr pScreen, XID visual)
 {
     CompScreenPtr cs = GetCompScreen(pScreen);
     int i;
 
-    for (i = 0; i < cs->numAlternateVisuals; i++)
+    for (i = 0; cs && i < cs->numAlternateVisuals; i++)
         if (cs->alternateVisuals[i] == visual)
             return TRUE;
     return FALSE;
@@ -463,7 +460,8 @@ compReparentWindow(WindowPtr pWin, WindowPtr pPriorParent)
      * Reset pixmap pointers as appropriate
      */
     if (pWin->parent && pWin->redirectDraw == RedirectDrawNone)
-        compSetPixmap(pWin, (*pScreen->GetWindowPixmap) (pWin->parent));
+        compSetPixmap(pWin, (*pScreen->GetWindowPixmap) (pWin->parent),
+                      pWin->borderWidth);
     /*
      * Call down to next function
      */

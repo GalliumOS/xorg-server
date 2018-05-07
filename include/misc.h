@@ -79,6 +79,7 @@ OF THIS SOFTWARE.
 
 #include <stddef.h>
 #include <stdint.h>
+#include <pthread.h>
 
 #ifndef MAXSCREENS
 #define MAXSCREENS	16
@@ -86,7 +87,7 @@ OF THIS SOFTWARE.
 #ifndef MAXGPUSCREENS
 #define MAXGPUSCREENS	16
 #endif
-#define MAXCLIENTS	512
+#define MAXCLIENTS	2048
 #define LIMITCLIENTS	256     /* Must be a power of 2 and <= MAXCLIENTS */
 #define MAXEXTENSIONS   128
 #define MAXFORMATS	8
@@ -247,7 +248,7 @@ padding_for_int32(const int bytes)
 }
 
 
-extern char **xstrtokenize(const char *str, const char *separators);
+extern _X_EXPORT char **xstrtokenize(const char *str, const char *separators);
 extern void FormatInt64(int64_t num, char *string);
 extern void FormatUInt64(uint64_t num, char *string);
 extern void FormatUInt64Hex(uint64_t num, char *string);
