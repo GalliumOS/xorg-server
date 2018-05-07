@@ -1,0 +1,31 @@
+## Patches with a number < 100 are applied in debian.
+## Ubuntu patches start with 100.
+001_fedora_extramodes.patch
+02_kbsd-input-devd.diff
+03_static-nettle.diff
+05_Revert-Unload-submodules.diff
+06_use-intel-only-on-pre-gen4.diff
+07-glx-do-not-pick-srgb-config-for-32bit-rgba-visual.diff
+
+
+## Ubuntu patches, not upstreamable
+168_glibc_trace_to_stderr.patch
+226_fall_back_to_autoconfiguration.patch
+
+## send upstream
+xfree86-no-xv-for-gpuscreens.patch
+no-nv.patch
+
+## upstream patches
+
+# hybrid graphics fixes
+228_autobind_gpu.patch
+xf86-ignore-conflicting-rr-caps.patch
+
+xmir.patch
+xi2-resize-touch.patch
+xwayland-tablet.diff
+improve-outputclass.diff
+dri2-Sync-i965_pci_ids.h-from-Mesa.patch
+server-1.19.diff
+fix-default-permissions.patch
