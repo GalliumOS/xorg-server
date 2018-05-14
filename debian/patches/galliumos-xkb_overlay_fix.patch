@@ -32,9 +32,9 @@
      XkbStateRec prev_state;
      XkbStateRec state;
 @@ -189,6 +202,8 @@
- 
-     int szFilters;
      XkbFilterPtr filters;
+ 
+     XkbSrvCheckRepeatPtr checkRepeat;
 +
 +    HashTable overlayHistory;
  } XkbSrvInfoRec, *XkbSrvInfoPtr;
